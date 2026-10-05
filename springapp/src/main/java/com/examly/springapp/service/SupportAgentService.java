@@ -1,19 +1,19 @@
 package com.examly.springapp.service;
 
 import java.util.List;
+import java.util.Optional;
 
-import com.examly.springapp.model.SupportAgentRequestDTO;
-import com.examly.springapp.model.SupportAgentResponseDTO;
+import com.examly.springapp.model.SupportAgent;
 
 public interface SupportAgentService {
 
-    SupportAgentResponseDTO addSupportAgent(SupportAgentRequestDTO supportAgent);
+    SupportAgent addSupportAgent(SupportAgent supportAgent);
 
-    SupportAgentResponseDTO getSupportAgentById(Long agentId);
+    Optional<SupportAgent> getSupportAgentById(Long agentId);
 
-    List<SupportAgentResponseDTO> getAllSupportAgents();
+    List<SupportAgent> getAllSupportAgents();
 
-    SupportAgentResponseDTO updateSupportAgent(Long agentId, SupportAgentRequestDTO supportAgent);
+    SupportAgent updateSupportAgent(Long agentId, SupportAgent supportAgent);
 
-    SupportAgentResponseDTO deleteSupportAgent(Long agentId);
+    SupportAgent deleteSupportAgent(Long agentId);
 }

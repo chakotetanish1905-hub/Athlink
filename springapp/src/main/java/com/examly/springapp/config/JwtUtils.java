@@ -3,94 +3,63 @@ package com.examly.springapp.config;
 import java.security.Key;
 import java.util.Date;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.CredentialsExpiredException;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 
-/**
- * All JWT concerns in one place: generation, parsing, validation and expiry checks.
- * Secret and expiry come from configuration (jwt.secret / jwt.expiration), never from source code.
- */
+// Creates and validates JSON Web Tokens.
 @Component
 public class JwtUtils {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(JwtUtils.class);
-    public static final String CLAIM_USER_ID = "userId";
-    public static final String CLAIM_ROLE = "role";
-    public static final String CLAIM_USERNAME = "username";
-
-    private final Key signingKey;
+    private final Key key;
     private final long expirationMs;
 
     public JwtUtils(@Value("${jwt.secret}") String secret, @Value("${jwt.expiration}") long expirationMs) {
-        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UserPrinciple principle) {
+    // Called after a successful login. The email is the token subject.
+    public String generateToken(UserPrinciple user) {
         Date now = new Date();
+        Date expiry = new Date(now.getTime() + expirationMs);
+
         return Jwts.builder()
-                .setSubject(principle.getUsername())
-                .claim(CLAIM_USER_ID, principle.getUserId())
-                .claim(CLAIM_ROLE, principle.getRole())
-                .claim(CLAIM_USERNAME, principle.getDisplayName())
+                .setSubject(user.getEmail())
+                .claim("userId", user.getUserId())
+                .claim("role", user.getUserRole())
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expirationMs))
-                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .setExpiration(expiry)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    /**
-     * Parses and verifies signature + expiry.
-     * @throws CredentialsExpiredException when the token has expired (mapped to 401)
-     * @throws BadCredentialsException when the token is malformed or the signature is wrong (401)
-     */
-    public Claims validateToken(String token) {
+    // Returns the email stored in the token.
+    public String getEmailFromToken(String token) {
+        return getClaims(token).getSubject();
+    }
+
+    // A token is valid when the signature is correct and it has not expired.
+    public boolean validateToken(String token) {
         try {
-            return Jwts.parserBuilder().setSigningKey(signingKey).build().parseClaimsJws(token).getBody();
-        } catch (ExpiredJwtException ex) {
-            LOGGER.debug("JWT rejected: expired");
-            throw new CredentialsExpiredException("JWT token has expired. Please login again.");
-        } catch (JwtException | IllegalArgumentException ex) {
-            LOGGER.debug("JWT rejected: {}", ex.getClass().getSimpleName());
-            throw new BadCredentialsException("Invalid JWT token.");
+            getClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
         }
     }
 
-    public String extractUsername(Claims claims) {
-        return claims.getSubject();
-    }
-
-    public boolean isTokenExpired(Claims claims) {
-        return claims.getExpiration() == null || claims.getExpiration().before(new Date());
-    }
-
-    /** Token belongs to this user and has not expired. */
-    public boolean isTokenValidFor(Claims claims, UserDetails userDetails) {
-        return userDetails.getUsername().equals(extractUsername(claims)) && !isTokenExpired(claims);
-    }
-
-    /** Test/utility hook: builds a token with an explicit expiry (used to verify expired-token handling). */
-    public String generateTokenWithExpiry(UserPrinciple principle, Date issuedAt, Date expiresAt) {
-        return Jwts.builder()
-                .setSubject(principle.getUsername())
-                .claim(CLAIM_USER_ID, principle.getUserId())
-                .claim(CLAIM_ROLE, principle.getRole())
-                .setIssuedAt(issuedAt)
-                .setExpiration(expiresAt)
-                .signWith(signingKey, SignatureAlgorithm.HS256)
-                .compact();
+    private Claims getClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

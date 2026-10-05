@@ -1,11 +1,12 @@
 package com.examly.springapp.controller;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,30 +16,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.examly.springapp.config.SwaggerConfig;
-import com.examly.springapp.model.ErrorResponseDTO;
-import com.examly.springapp.model.TicketRequestDTO;
-import com.examly.springapp.model.TicketResponseDTO;
+import com.examly.springapp.config.UserPrinciple;
+import com.examly.springapp.model.Ticket;
+import com.examly.springapp.model.User;
 import com.examly.springapp.service.TicketService;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+// The URL role rules are in SecurityConfig. This controller adds the ownership checks:
+// a Client can only see and change their own tickets (the userId in the URL is never trusted).
 @RestController
 @RequestMapping("/api/ticket")
-@Tag(name = "Tickets", description = "Support ticket management")
-@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
 public class TicketController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(TicketController.class);
 
     private final TicketService ticketService;
 
@@ -46,115 +35,123 @@ public class TicketController {
         this.ticketService = ticketService;
     }
 
+    // Client: 201 with the new ticket
     @PostMapping
-    @Operation(summary = "Add ticket (Client)",
-            description = "Creates a ticket for the authenticated client. Status always starts as Open.")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
-            description = "title, description, priority (High|Medium|Low), issueCategory")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Ticket created",
-                    content = @Content(schema = @Schema(implementation = TicketResponseDTO.class))),
-            @ApiResponse(responseCode = "403", description = "Forbidden for Manager / other user's id",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "409", description = "A ticket with this title already exists",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<TicketResponseDTO> addTicket(@Valid @RequestBody TicketRequestDTO request) {
-        LOGGER.debug("POST /api/ticket");
-        return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.addTicket(request));
+    public ResponseEntity<Ticket> addTicket(@Valid @RequestBody Ticket ticket,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        // The ticket always belongs to the logged-in client
+        User owner = new User();
+        owner.setUserId(currentUser.getUserId());
+        ticket.setUser(owner);
+
+        Ticket savedTicket = ticketService.addTicket(ticket);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedTicket);
     }
 
+    // Client: 200 with the ticket, 404 if not found
     @GetMapping("/{ticketId}")
-    @Operation(summary = "View ticket by id (Client)", description = "Returns one of the client's own tickets.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Ticket found",
-                    content = @Content(schema = @Schema(implementation = TicketResponseDTO.class))),
-            @ApiResponse(responseCode = "403", description = "Forbidden for Manager or for another client's ticket",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Ticket not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<TicketResponseDTO> getTicketById(
-            @Parameter(description = "Ticket id", required = true) @PathVariable Long ticketId) {
-        return ResponseEntity.ok(ticketService.getTicketById(ticketId));
+    public ResponseEntity<Ticket> getTicketById(@PathVariable Long ticketId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        Ticket ticket = ticketService.getTicketById(ticketId).orElse(null);
+        if (ticket == null) {
+            return ResponseEntity.notFound().build();
+        }
+        checkOwner(ticket, currentUser);
+        return ResponseEntity.ok(ticket);
     }
 
+    // Manager: every ticket. Client: only their own tickets. 204 when there are none.
     @GetMapping
-    @Operation(summary = "View all tickets (Manager, Client)",
-            description = "Manager receives every ticket; a Client receives only their own tickets.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Tickets found",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = TicketResponseDTO.class)))),
-            @ApiResponse(responseCode = "204", description = "No tickets") })
-    public ResponseEntity<List<TicketResponseDTO>> getAllTickets() {
-        List<TicketResponseDTO> tickets = ticketService.getAllTickets();
+    public ResponseEntity<List<Ticket>> getAllTickets(@AuthenticationPrincipal UserPrinciple currentUser) {
+        List<Ticket> tickets;
+        if (currentUser != null && currentUser.isClient()) {
+            tickets = ticketService.getTicketsByUserId(currentUser.getUserId());
+        } else {
+            tickets = ticketService.getAllTickets();
+        }
+
         if (tickets.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(tickets);
     }
 
+    // Manager: assign an agent or close the ticket.
+    // Client: edit their Open ticket, add the resolution summary, mark it Resolved.
     @PutMapping("/{ticketId}")
-    @Operation(summary = "Update ticket (Manager, Client)",
-            description = "Client: edit own Open ticket, or resolve it with resolutionSummary + satisfied. "
-                    + "Manager: assign agentId, change status, close a Resolved ticket. "
-                    + "Status Resolved requires a resolutionSummary.")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, description = "Full ticket payload")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Ticket updated",
-                    content = @Content(schema = @Schema(implementation = TicketResponseDTO.class))),
-            @ApiResponse(responseCode = "400", description = "Business rule violated (e.g. Resolved without summary)",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Ticket or agent not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "409", description = "Duplicate title",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<TicketResponseDTO> updateTicket(
-            @Parameter(description = "Ticket id", required = true) @PathVariable Long ticketId,
-            @Valid @RequestBody TicketRequestDTO request) {
-        LOGGER.debug("PUT /api/ticket/{}", ticketId);
-        return ResponseEntity.ok(ticketService.updateTicket(ticketId, request));
+    public ResponseEntity<Ticket> updateTicket(@PathVariable Long ticketId, @Valid @RequestBody Ticket ticket,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        Ticket existing = ticketService.getTicketById(ticketId).orElse(null);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (currentUser.isManager()) {
+            // A manager only assigns agents and changes the status, so keep the client's fields as they are
+            ticket.setTitle(existing.getTitle());
+            ticket.setDescription(existing.getDescription());
+            ticket.setPriority(existing.getPriority());
+            ticket.setIssueCategory(existing.getIssueCategory());
+            ticket.setResolutionSummary(existing.getResolutionSummary());
+            ticket.setSatisfied(existing.getSatisfied());
+        } else {
+            checkOwner(existing, currentUser);
+            // A client cannot assign an agent, close a ticket or set it to In Progress
+            ticket.setSupportAgent(existing.getSupportAgent());
+            String newStatus = ticket.getStatus();
+            boolean statusChanged = newStatus != null && !newStatus.equals(existing.getStatus());
+            if (statusChanged && ("Closed".equals(newStatus) || "In Progress".equals(newStatus))) {
+                throw new AccessDeniedException("Only a manager can change the ticket to " + newStatus);
+            }
+        }
+
+        Ticket updatedTicket = ticketService.updateTicket(ticketId, ticket);
+        return ResponseEntity.ok(updatedTicket);
     }
 
+    // Client: 200 with the deleted ticket
     @DeleteMapping("/{ticketId}")
-    @Operation(summary = "Delete ticket (Client)",
-            description = "Deletes the client's own ticket while it is Open and unassigned; returns the deleted ticket.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Ticket deleted",
-                    content = @Content(schema = @Schema(implementation = TicketResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Ticket not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "409", description = "Ticket cannot be deleted (assigned / not Open)",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<TicketResponseDTO> deleteTicket(
-            @Parameter(description = "Ticket id", required = true) @PathVariable Long ticketId) {
-        LOGGER.debug("DELETE /api/ticket/{}", ticketId);
-        return ResponseEntity.ok(ticketService.deleteTicket(ticketId));
+    public ResponseEntity<Ticket> deleteTicket(@PathVariable Long ticketId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        Ticket existing = ticketService.getTicketById(ticketId).orElse(null);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        checkOwner(existing, currentUser);
+
+        Ticket deletedTicket = ticketService.deleteTicket(ticketId);
+        return ResponseEntity.ok(deletedTicket);
     }
 
+    // Client: their own tickets only
     @GetMapping("/user/{userId}")
-    @Operation(summary = "View tickets by user id (Client)",
-            description = "Returns the tickets of the authenticated client. userId must match the JWT identity.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Tickets of the user",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = TicketResponseDTO.class)))),
-            @ApiResponse(responseCode = "403", description = "Manager, or another client's userId",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "User not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<List<TicketResponseDTO>> getTicketsByUserId(
-            @Parameter(description = "User id", required = true) @PathVariable Long userId) {
+    public ResponseEntity<List<Ticket>> getTicketsByUserId(@PathVariable Long userId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        if (!userId.equals(currentUser.getUserId())) {
+            throw new AccessDeniedException("You can only view your own tickets");
+        }
         return ResponseEntity.ok(ticketService.getTicketsByUserId(userId));
     }
 
+    // Client: their own tickets that were handled by this agent ("Tickets Worked")
     @GetMapping("/agent/{agentId}")
-    @Operation(summary = "View tickets by agent id (Client)",
-            description = "Returns the authenticated client's tickets handled by the given agent.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Tickets of the agent",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = TicketResponseDTO.class)))),
-            @ApiResponse(responseCode = "404", description = "Agent not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<List<TicketResponseDTO>> getTicketsByAgentId(
-            @Parameter(description = "Support agent id", required = true) @PathVariable Long agentId) {
-        return ResponseEntity.ok(ticketService.getTicketsByAgentId(agentId));
+    public ResponseEntity<List<Ticket>> getTicketsByAgentId(@PathVariable Long agentId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        List<Ticket> agentTickets = ticketService.getTicketsByAgentId(agentId);
+
+        List<Ticket> myTickets = new ArrayList<>();
+        for (Ticket ticket : agentTickets) {
+            if (ticket.getUser().getUserId().equals(currentUser.getUserId())) {
+                myTickets.add(ticket);
+            }
+        }
+        return ResponseEntity.ok(myTickets);
+    }
+
+    // Throws 403 when a client tries to use somebody else's ticket.
+    private void checkOwner(Ticket ticket, UserPrinciple currentUser) {
+        if (!ticket.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new AccessDeniedException("You can only access your own tickets");
+        }
     }
 }

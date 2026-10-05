@@ -2,10 +2,10 @@ package com.examly.springapp.controller;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,30 +14,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.examly.springapp.config.SwaggerConfig;
-import com.examly.springapp.model.ErrorResponseDTO;
-import com.examly.springapp.model.FeedbackRequestDTO;
-import com.examly.springapp.model.FeedbackResponseDTO;
+import com.examly.springapp.config.UserPrinciple;
+import com.examly.springapp.model.Feedback;
+import com.examly.springapp.model.User;
 import com.examly.springapp.service.FeedbackService;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+// URL role rules are in SecurityConfig. A Client can only see and delete their own feedback.
 @RestController
 @RequestMapping("/api/feedback")
-@Tag(name = "Feedback", description = "Client feedback")
-@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
 public class FeedbackController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(FeedbackController.class);
 
     private final FeedbackService feedbackService;
 
@@ -45,85 +32,76 @@ public class FeedbackController {
         this.feedbackService = feedbackService;
     }
 
+    // Client: 201 with the new feedback
     @PostMapping
-    @Operation(summary = "Create feedback (Client)",
-            description = "Posts feedback for one of the client's own Resolved or Closed tickets.")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
-            description = "feedbackText, ticketId, category, rating (1-5), optional agentId/date")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Feedback created",
-                    content = @Content(schema = @Schema(implementation = FeedbackResponseDTO.class))),
-            @ApiResponse(responseCode = "403", description = "Forbidden for Manager / another client's ticket",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Ticket not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "409", description = "Feedback for this ticket already exists",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<FeedbackResponseDTO> createFeedback(@Valid @RequestBody FeedbackRequestDTO request) {
-        LOGGER.debug("POST /api/feedback");
-        return ResponseEntity.status(HttpStatus.CREATED).body(feedbackService.createFeedback(request));
+    public ResponseEntity<Feedback> createFeedback(@Valid @RequestBody Feedback feedback,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        // The feedback always belongs to the logged-in client
+        User owner = new User();
+        owner.setUserId(currentUser.getUserId());
+        feedback.setUser(owner);
+
+        Feedback savedFeedback = feedbackService.createFeedback(feedback);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedFeedback);
     }
 
+    // Manager: any feedback. Client: only their own.
     @GetMapping("/{feedbackId}")
-    @Operation(summary = "View feedback by id (Manager, Client)",
-            description = "Manager can view any feedback; a Client only their own.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Feedback found",
-                    content = @Content(schema = @Schema(implementation = FeedbackResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Feedback not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<FeedbackResponseDTO> getFeedbackById(
-            @Parameter(description = "Feedback id", required = true) @PathVariable Long feedbackId) {
-        return ResponseEntity.ok(feedbackService.getFeedbackById(feedbackId));
+    public ResponseEntity<Feedback> getFeedbackById(@PathVariable Long feedbackId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        Feedback feedback = feedbackService.getFeedbackById(feedbackId);
+        if (currentUser.isClient()) {
+            checkOwner(feedback, currentUser);
+        }
+        return ResponseEntity.ok(feedback);
     }
 
+    // Manager: all feedback. Client: only their own. 204 when there is none.
     @GetMapping
-    @Operation(summary = "View all feedbacks (Manager, Client)",
-            description = "Manager receives all feedback; a Client receives only their own.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Feedback found",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = FeedbackResponseDTO.class)))),
-            @ApiResponse(responseCode = "204", description = "No feedback") })
-    public ResponseEntity<List<FeedbackResponseDTO>> getAllFeedbacks() {
-        List<FeedbackResponseDTO> feedbacks = feedbackService.getAllFeedbacks();
+    public ResponseEntity<List<Feedback>> getAllFeedbacks(@AuthenticationPrincipal UserPrinciple currentUser) {
+        List<Feedback> feedbacks;
+        if (currentUser != null && currentUser.isClient()) {
+            feedbacks = feedbackService.getFeedbacksByUserId(currentUser.getUserId());
+        } else {
+            feedbacks = feedbackService.getAllFeedbacks();
+        }
+
         if (feedbacks.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(feedbacks);
     }
 
+    // Client: their own feedback only
     @GetMapping("/user/{userId}")
-    @Operation(summary = "View feedbacks by user id (Client)",
-            description = "Returns the authenticated client's feedback. userId must match the JWT identity.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Feedback found",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = FeedbackResponseDTO.class)))),
-            @ApiResponse(responseCode = "204", description = "No feedback"),
-            @ApiResponse(responseCode = "403", description = "Manager, or another client's userId",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "User not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<List<FeedbackResponseDTO>> getFeedbacksByUserId(
-            @Parameter(description = "User id", required = true) @PathVariable Long userId) {
-        List<FeedbackResponseDTO> feedbacks = feedbackService.getFeedbacksByUserId(userId);
+    public ResponseEntity<List<Feedback>> getFeedbacksByUserId(@PathVariable Long userId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        if (!userId.equals(currentUser.getUserId())) {
+            throw new AccessDeniedException("You can only view your own feedback");
+        }
+
+        List<Feedback> feedbacks = feedbackService.getFeedbacksByUserId(userId);
         if (feedbacks.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(feedbacks);
     }
 
+    // Client: 200 with the deleted feedback
     @DeleteMapping("/{feedbackId}")
-    @Operation(summary = "Delete feedback (Client)", description = "Deletes the client's own feedback.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Feedback deleted",
-                    content = @Content(schema = @Schema(implementation = FeedbackResponseDTO.class))),
-            @ApiResponse(responseCode = "403", description = "Forbidden for Manager / another client's feedback",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Feedback not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))) })
-    public ResponseEntity<FeedbackResponseDTO> deleteFeedback(
-            @Parameter(description = "Feedback id", required = true) @PathVariable Long feedbackId) {
-        LOGGER.debug("DELETE /api/feedback/{}", feedbackId);
-        return ResponseEntity.ok(feedbackService.deleteFeedback(feedbackId));
+    public ResponseEntity<Feedback> deleteFeedback(@PathVariable Long feedbackId,
+            @AuthenticationPrincipal UserPrinciple currentUser) {
+        Feedback feedback = feedbackService.getFeedbackById(feedbackId);
+        checkOwner(feedback, currentUser);
+
+        Feedback deletedFeedback = feedbackService.deleteFeedback(feedbackId);
+        return ResponseEntity.ok(deletedFeedback);
+    }
+
+    // Throws 403 when a client tries to use somebody else's feedback.
+    private void checkOwner(Feedback feedback, UserPrinciple currentUser) {
+        if (!feedback.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new AccessDeniedException("You can only access your own feedback");
+        }
     }
 }

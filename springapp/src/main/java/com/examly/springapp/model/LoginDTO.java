@@ -1,8 +1,6 @@
 package com.examly.springapp.model;
 
-/**
- * Response of a successful login (SRS: LoginDTO): token, username, userRole, userId.
- */
+// Sent back to Angular after a successful login (SRS: LoginDTO).
 public class LoginDTO {
 
     private String token;

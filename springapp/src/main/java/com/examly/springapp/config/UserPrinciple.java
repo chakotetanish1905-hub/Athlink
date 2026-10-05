@@ -1,5 +1,6 @@
 package com.examly.springapp.config;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -9,36 +10,26 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import com.examly.springapp.model.User;
 
-/**
- * Spring Security view of a SupportSphere user.
- * getUsername() returns the email (the authentication identity); the display name is kept separately.
- * Database role "Manager"/"Client" becomes authority "ROLE_MANAGER"/"ROLE_CLIENT".
- */
+// The logged-in user as Spring Security sees it.
+// The email is used as the "username" for login, and the role "Manager"/"Client"
+// becomes the authority "ROLE_MANAGER"/"ROLE_CLIENT".
 public class UserPrinciple implements UserDetails {
 
-    private static final long serialVersionUID = 1L;
-    public static final String ROLE_MANAGER = "Manager";
-    public static final String ROLE_CLIENT = "Client";
+    private Long userId;
+    private String email;
+    private String password;
+    private String username;
+    private String userRole;
+    private List<GrantedAuthority> authorities;
 
-    private final Long userId;
-    private final String email;
-    private final String password;
-    private final String displayName;
-    private final String role;
-    private final List<GrantedAuthority> authorities;
-
-    public UserPrinciple(Long userId, String email, String password, String displayName, String role) {
-        this.userId = userId;
-        this.email = email;
-        this.password = password;
-        this.displayName = displayName;
-        this.role = role;
-        this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
-    }
-
-    public static UserPrinciple build(User user) {
-        return new UserPrinciple(user.getUserId(), user.getEmail(), user.getPassword(), user.getUsername(),
-                user.getUserRole());
+    public UserPrinciple(User user) {
+        this.userId = user.getUserId();
+        this.email = user.getEmail();
+        this.password = user.getPassword();
+        this.username = user.getUsername();
+        this.userRole = user.getUserRole();
+        this.authorities = new ArrayList<>();
+        this.authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getUserRole().toUpperCase()));
     }
 
     public Long getUserId() {
@@ -49,20 +40,21 @@ public class UserPrinciple implements UserDetails {
         return email;
     }
 
+    // The display name of the user (for example "Rahul Verma").
     public String getDisplayName() {
-        return displayName;
+        return username;
     }
 
-    public String getRole() {
-        return role;
+    public String getUserRole() {
+        return userRole;
     }
 
     public boolean isManager() {
-        return ROLE_MANAGER.equalsIgnoreCase(role);
+        return "Manager".equals(userRole);
     }
 
     public boolean isClient() {
-        return ROLE_CLIENT.equalsIgnoreCase(role);
+        return "Client".equals(userRole);
     }
 
     @Override
@@ -75,6 +67,7 @@ public class UserPrinciple implements UserDetails {
         return password;
     }
 
+    // Spring Security calls this the username; in SupportSphere users log in with their email.
     @Override
     public String getUsername() {
         return email;

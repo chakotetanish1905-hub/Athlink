@@ -9,10 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/**
- * Persists every handled exception/error (SRS: separate "ErrorLogs" table).
- * Never stores passwords, JWTs or stack traces.
- */
+// Every handled error is saved in the separate "ErrorLogs" table (SRS requirement).
 @Entity
 @Table(name = "ErrorLogs")
 public class ErrorLog {
@@ -21,7 +18,6 @@ public class ErrorLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long errorId;
 
-    @Column(nullable = false)
     private LocalDateTime timestamp;
 
     private Integer status;

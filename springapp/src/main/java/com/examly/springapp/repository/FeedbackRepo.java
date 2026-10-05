@@ -3,18 +3,16 @@ package com.examly.springapp.repository;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import com.examly.springapp.model.Feedback;
 
-@Repository
 public interface FeedbackRepo extends JpaRepository<Feedback, Long> {
 
+    // GET /api/feedback/user/{userId}
     List<Feedback> findByUserUserId(Long userId);
 
-    boolean existsByUserUserIdAndTicketTicketId(Long userId, Long ticketId);
+    // Used before deleting a ticket or an agent that still has feedback.
+    List<Feedback> findByTicketTicketId(Long ticketId);
 
-    boolean existsByTicketTicketId(Long ticketId);
-
-    boolean existsBySupportAgentAgentId(Long agentId);
+    List<Feedback> findBySupportAgentAgentId(Long agentId);
 }

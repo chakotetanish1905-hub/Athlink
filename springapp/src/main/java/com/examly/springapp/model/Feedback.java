@@ -14,10 +14,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
-/**
- * Stores all feedback information (SRS: Feedback).
- */
 @Entity
 @Table(name = "feedback")
 public class Feedback {
@@ -26,11 +24,12 @@ public class Feedback {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long feedbackId;
 
-    @NotBlank
-    @Column(nullable = false, length = 2000)
+    @NotBlank(message = "Feedback text is required")
+    @Size(max = 1000, message = "Feedback must not exceed 1000 characters")
+    @Column(nullable = false, length = 1000)
     private String feedbackText;
 
-    @NotNull
+    // "date" is a reserved word in some databases, so the column gets a safer name.
     @Column(name = "feedback_date", nullable = false)
     private LocalDate date;
 
@@ -46,30 +45,15 @@ public class Feedback {
     @JoinColumn(name = "ticket_id", nullable = false)
     private Ticket ticket;
 
-    @NotBlank
+    @NotBlank(message = "Category is required")
     private String category;
 
-    @NotNull
-    @Min(1)
-    @Max(5)
+    @NotNull(message = "Rating is required")
+    @Min(value = 1, message = "Rating must be between 1 and 5")
+    @Max(value = 5, message = "Rating must be between 1 and 5")
     private Integer rating;
 
     public Feedback() {
-    }
-
-    public Feedback(String feedbackText, LocalDate date, String category, Integer rating) {
-        this.feedbackText = feedbackText;
-        this.date = date;
-        this.category = category;
-        this.rating = rating;
-    }
-
-    public Feedback(String feedbackText, LocalDate date, String category, Integer rating,
-            User user, SupportAgent supportAgent, Ticket ticket) {
-        this(feedbackText, date, category, rating);
-        this.user = user;
-        this.supportAgent = supportAgent;
-        this.ticket = ticket;
     }
 
     public Long getFeedbackId() {

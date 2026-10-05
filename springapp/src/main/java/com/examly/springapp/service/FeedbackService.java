@@ -2,18 +2,17 @@ package com.examly.springapp.service;
 
 import java.util.List;
 
-import com.examly.springapp.model.FeedbackRequestDTO;
-import com.examly.springapp.model.FeedbackResponseDTO;
+import com.examly.springapp.model.Feedback;
 
 public interface FeedbackService {
 
-    FeedbackResponseDTO createFeedback(FeedbackRequestDTO feedback);
+    Feedback createFeedback(Feedback feedback);
 
-    FeedbackResponseDTO getFeedbackById(Long feedbackId);
+    Feedback getFeedbackById(Long feedbackId);
 
-    List<FeedbackResponseDTO> getAllFeedbacks();
+    List<Feedback> getAllFeedbacks();
 
-    FeedbackResponseDTO deleteFeedback(Long feedbackId);
+    Feedback deleteFeedback(Long feedbackId);
 
-    List<FeedbackResponseDTO> getFeedbacksByUserId(Long userId);
+    List<Feedback> getFeedbacksByUserId(Long userId);
 }

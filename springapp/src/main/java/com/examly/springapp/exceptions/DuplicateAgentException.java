@@ -1,9 +1,7 @@
 package com.examly.springapp.exceptions;
 
-/**
- * Thrown when attempting to create a support agent with duplicate email/phone (409).
- */
-public class DuplicateAgentException extends DuplicateResourceException {
+// Thrown when a support agent with the same email already exists.
+public class DuplicateAgentException extends RuntimeException {
 
     public DuplicateAgentException(String message) {
         super(message);

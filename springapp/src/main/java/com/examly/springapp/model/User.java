@@ -1,5 +1,7 @@
 package com.examly.springapp.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -9,12 +11,8 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
-/**
- * Stores all user information (SRS: User).
- * userRole is stored as "Manager" or "Client" (no ROLE_ prefix in the database).
- * The password column only ever holds a BCrypt hash.
- */
 @Entity
 @Table(name = "users")
 public class User {
@@ -23,43 +21,34 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;
 
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Enter a valid email address")
     @Column(nullable = false, unique = true)
     private String email;
 
-    @NotBlank
+    // The password can be sent to the API (register / login) but is never sent back in a response.
+    // Only the BCrypt-encoded value is stored in the database.
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @NotBlank(message = "Password is required")
+    @Size(min = 8, message = "Password must be at least 8 characters")
     @Column(nullable = false)
     private String password;
 
-    @NotBlank
+    @NotBlank(message = "Username is required")
     @Column(nullable = false)
     private String username;
 
-    @NotBlank
-    @Pattern(regexp = "^\\d{10}$")
+    @NotBlank(message = "Mobile number is required")
+    @Pattern(regexp = "^\\d{10}$", message = "Mobile number must be 10 digits")
     @Column(nullable = false)
     private String mobileNumber;
 
-    @NotBlank
-    @Pattern(regexp = "^(Manager|Client)$")
+    @NotBlank(message = "User role is required")
+    @Pattern(regexp = "^(Manager|Client)$", message = "User role must be Manager or Client")
     @Column(nullable = false)
     private String userRole;
 
     public User() {
-    }
-
-    public User(String email, String password, String username, String mobileNumber, String userRole) {
-        this.email = email;
-        this.password = password;
-        this.username = username;
-        this.mobileNumber = mobileNumber;
-        this.userRole = userRole;
-    }
-
-    public User(Long userId, String email, String password, String username, String mobileNumber, String userRole) {
-        this(email, password, username, mobileNumber, userRole);
-        this.userId = userId;
     }
 
     public Long getUserId() {

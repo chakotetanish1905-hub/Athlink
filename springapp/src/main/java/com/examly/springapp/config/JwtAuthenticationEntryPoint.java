@@ -2,53 +2,34 @@ package com.examly.springapp.config;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
-import com.examly.springapp.model.ErrorResponseDTO;
-import com.examly.springapp.service.ErrorLogService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.examly.springapp.model.ErrorLog;
+import com.examly.springapp.repository.ErrorLogRepo;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-/**
- * Answers 401 Unauthorized when an unauthenticated request (no / invalid / expired JWT)
- * reaches a protected endpoint. The request never reaches the controller.
- */
+// Sends 401 Unauthorized when a protected URL is called without a valid JWT.
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(JwtAuthenticationEntryPoint.class);
+    private final ErrorLogRepo errorLogRepo;
 
-    private final ObjectMapper objectMapper;
-    private final ErrorLogService errorLogService;
-
-    public JwtAuthenticationEntryPoint(ObjectMapper objectMapper, ErrorLogService errorLogService) {
-        this.objectMapper = objectMapper;
-        this.errorLogService = errorLogService;
+    public JwtAuthenticationEntryPoint(ErrorLogRepo errorLogRepo) {
+        this.errorLogRepo = errorLogRepo;
     }
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException authException) throws IOException {
-        Object jwtError = request.getAttribute(JwtAuthenticationFilter.JWT_ERROR_ATTRIBUTE);
-        String message = jwtError != null ? jwtError.toString()
-                : "Authentication is required to access this resource.";
+        String message = "Please login to access this resource";
+        errorLogRepo.save(new ErrorLog(401, message, request.getRequestURI(), "Unauthorized"));
 
-        LOGGER.warn("401 Unauthorized: {} {} - {}", request.getMethod(), request.getRequestURI(), message);
-        errorLogService.logError(HttpStatus.UNAUTHORIZED.value(), message, request.getRequestURI(),
-                authException.getClass().getSimpleName());
-
-        ErrorResponseDTO body = new ErrorResponseDTO(HttpStatus.UNAUTHORIZED.value(),
-                HttpStatus.UNAUTHORIZED.getReasonPhrase(), message, request.getRequestURI());
-        response.setStatus(HttpStatus.UNAUTHORIZED.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getOutputStream(), body);
+        response.setStatus(401);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}");
     }
 }

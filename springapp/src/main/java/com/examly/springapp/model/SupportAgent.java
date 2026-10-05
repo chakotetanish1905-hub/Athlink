@@ -13,9 +13,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
-/**
- * Stores all information related to support agents (SRS: SupportAgent).
- */
 @Entity
 @Table(name = "support_agent")
 public class SupportAgent {
@@ -24,60 +21,46 @@ public class SupportAgent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long agentId;
 
-    @NotBlank
+    @NotBlank(message = "Name is required")
     @Column(nullable = false)
     private String name;
 
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Enter a valid email address")
     @Column(nullable = false, unique = true)
     private String email;
 
-    @NotBlank
+    @NotBlank(message = "Phone is required")
+    @Pattern(regexp = "^\\d{10}$", message = "Phone must be 10 digits")
     @Column(nullable = false)
     private String phone;
 
-    @NotBlank
+    @NotBlank(message = "Expertise is required")
     private String expertise;
 
-    @NotBlank
+    @NotBlank(message = "Experience is required")
     private String experience;
 
-    @NotBlank
-    @Pattern(regexp = "^(Available|Unavailable)$")
+    // Allowed values: Available, Unavailable.
+    @NotBlank(message = "Status is required")
+    @Pattern(regexp = "^(Available|Unavailable)$", message = "Status must be Available or Unavailable")
     private String status;
 
     private LocalDate addedDate;
 
-    /** Base64-encoded profile image / resume. */
+    // Profile / resume stored as a base64-encoded string in a large-object column. Optional.
     @Lob
     @Column(nullable = true)
     private String profile;
 
+    @NotBlank(message = "Shift timing is required")
     private String shiftTiming;
 
+    @NotBlank(message = "Remarks are required")
     @Column(length = 1000)
     private String remarks;
 
     public SupportAgent() {
-    }
-
-    public SupportAgent(String name, String email, String phone, String expertise, String experience, String status) {
-        this.name = name;
-        this.email = email;
-        this.phone = phone;
-        this.expertise = expertise;
-        this.experience = experience;
-        this.status = status;
-    }
-
-    public SupportAgent(String name, String email, String phone, String expertise, String experience, String status,
-            LocalDate addedDate, String profile, String shiftTiming, String remarks) {
-        this(name, email, phone, expertise, experience, status);
-        this.addedDate = addedDate;
-        this.profile = profile;
-        this.shiftTiming = shiftTiming;
-        this.remarks = remarks;
     }
 
     public Long getAgentId() {

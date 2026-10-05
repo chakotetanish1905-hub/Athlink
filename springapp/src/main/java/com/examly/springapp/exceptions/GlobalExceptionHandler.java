@@ -1,7 +1,9 @@
 package com.examly.springapp.exceptions;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,100 +12,114 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import com.examly.springapp.model.ErrorResponseDTO;
-import com.examly.springapp.service.ErrorLogService;
+import com.examly.springapp.model.ErrorLog;
+import com.examly.springapp.repository.ErrorLogRepo;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-/**
- * Converts every exception into a consistent ErrorResponseDTO with the correct HTTP status,
- * records it in the ErrorLogs table and never exposes stack traces to the client.
- */
+// Turns exceptions into friendly JSON error responses and saves every error in the ErrorLogs table.
+//
+//   400 Bad Request  - validation errors, IllegalArgumentException (a business rule was broken)
+//   401 Unauthorized - wrong email or password
+//   403 Forbidden    - AccessDeniedException (for example, another client's ticket)
+//   404 Not Found    - NoSuchElementException
+//   409 Conflict     - duplicate data or a delete that is not allowed
+//   500              - anything unexpected
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    private final ErrorLogService errorLogService;
+    private final ErrorLogRepo errorLogRepo;
 
-    public GlobalExceptionHandler(ErrorLogService errorLogService) {
-        this.errorLogService = errorLogService;
-    }
-
-    /** ResourceNotFound (404), Duplicate* (409), AgentDeletion/TicketDeletion (409), Validation (400), Forbidden (403). */
-    @ExceptionHandler(SupportSphereException.class)
-    public ResponseEntity<ErrorResponseDTO> handleSupportSphere(SupportSphereException ex, HttpServletRequest request) {
-        return build(ex.getStatus(), ex.getMessage(), request, ex, null);
+    public GlobalExceptionHandler(ErrorLogRepo errorLogRepo) {
+        this.errorLogRepo = errorLogRepo;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponseDTO> handleValidation(MethodArgumentNotValidException ex,
+    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex,
             HttpServletRequest request) {
-        Map<String, String> errors = new LinkedHashMap<>();
-        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
-            errors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
+        // Collect one message per invalid field, for example {"title": "Title is required"}
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            fieldErrors.putIfAbsent(error.getField(), error.getDefaultMessage());
         }
-        return build(HttpStatus.BAD_REQUEST, "Validation failed. Please correct the highlighted fields.", request,
-                ex, errors);
+
+        String firstMessage = "Please fill in all required fields correctly.";
+        if (!fieldErrors.isEmpty()) {
+            firstMessage = fieldErrors.values().iterator().next();
+        }
+
+        ResponseEntity<Map<String, Object>> response = buildResponse(HttpStatus.BAD_REQUEST, firstMessage,
+                request, ex);
+        response.getBody().put("errors", fieldErrors);
+        return response;
     }
 
-    @ExceptionHandler({ HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class })
-    public ResponseEntity<ErrorResponseDTO> handleUnreadable(Exception ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Malformed request. Please check the submitted values.", request, ex,
-                null);
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponseDTO> handleDataIntegrity(DataIntegrityViolationException ex,
-            HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, "The request conflicts with existing data.", request, ex, null);
+    @ExceptionHandler({ IllegalArgumentException.class, HttpMessageNotReadableException.class })
+    public ResponseEntity<Map<String, Object>> handleBadRequest(Exception ex, HttpServletRequest request) {
+        String message = ex.getMessage();
+        if (ex instanceof HttpMessageNotReadableException) {
+            message = "The request body is not valid";
+        }
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request, ex);
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponseDTO> handleAuthentication(AuthenticationException ex,
+    public ResponseEntity<Map<String, Object>> handleLoginFailure(AuthenticationException ex,
             HttpServletRequest request) {
-        String message = ex instanceof BadCredentialsException ? "Invalid email or password"
-                : "Authentication failed. Please login again.";
-        return build(HttpStatus.UNAUTHORIZED, message, request, ex, null);
+        return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid email or password", request, ex);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponseDTO> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        return build(HttpStatus.FORBIDDEN, "You are not authorized to access this resource.", request, ex, null);
+    public ResponseEntity<Map<String, Object>> handleForbidden(AccessDeniedException ex,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage(), request, ex);
     }
 
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ErrorResponseDTO> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(NoSuchElementException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), request, ex, null);
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request, ex);
+    }
+
+    @ExceptionHandler({ DuplicateAgentException.class, DuplicateTicketException.class,
+            AgentDeletionException.class, TicketDeletionException.class, IllegalStateException.class })
+    public ResponseEntity<Map<String, Object>> handleConflict(RuntimeException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request, ex);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDatabaseConflict(DataIntegrityViolationException ex,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "This data conflicts with an existing record", request, ex);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponseDTO> handleUnexpected(Exception ex, HttpServletRequest request) {
-        LOGGER.error("Unexpected error on {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong. Please try again later.", request, ex,
-                null);
+    public ResponseEntity<Map<String, Object>> handleOtherErrors(Exception ex, HttpServletRequest request) {
+        LOGGER.error("Unexpected error on {}", request.getRequestURI(), ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong. Please try again later.",
+                request, ex);
     }
 
-    private ResponseEntity<ErrorResponseDTO> build(HttpStatus status, String message, HttpServletRequest request,
-            Exception ex, Map<String, String> validationErrors) {
-        String path = request.getRequestURI();
-        if (status.is4xxClientError()) {
-            LOGGER.warn("{} {} on {} {}: {}", status.value(), ex.getClass().getSimpleName(), request.getMethod(), path,
-                    message);
-        }
-        errorLogService.logError(status.value(), message, path, ex.getClass().getSimpleName());
-        ErrorResponseDTO body = new ErrorResponseDTO(status.value(), status.getReasonPhrase(), message, path,
-                validationErrors);
+    // Saves the error in the ErrorLogs table and builds the JSON body sent to Angular.
+    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message,
+            HttpServletRequest request, Exception ex) {
+        errorLogRepo.save(new ErrorLog(status.value(), message, request.getRequestURI(),
+                ex.getClass().getSimpleName()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message);
+        body.put("path", request.getRequestURI());
         return ResponseEntity.status(status).body(body);
     }
 }

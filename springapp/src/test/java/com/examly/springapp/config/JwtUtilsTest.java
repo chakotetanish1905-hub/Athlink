@@ -1,41 +1,57 @@
 package com.examly.springapp.config;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.util.Date;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.CredentialsExpiredException;
 
-import io.jsonwebtoken.Claims;
+import com.examly.springapp.model.User;
 
 class JwtUtilsTest {
 
     private static final String SECRET = "VGVzdE9ubHlTZWNyZXRGb3JTdXBwb3J0U3BoZXJlSnVuaXRUZXN0czAxMjM0NTY3ODk=";
 
-    private final JwtUtils jwtUtils = new JwtUtils(SECRET, 60_000);
-    private final UserPrinciple principle = new UserPrinciple(7L, "client@test.com", "hash", "client", "Client");
-
-    @Test
-    void generatesTokenContainingIdentityClaims() {
-        Claims claims = jwtUtils.validateToken(jwtUtils.generateToken(principle));
-        assertThat(claims.getSubject()).isEqualTo("client@test.com");
-        assertThat(claims.get(JwtUtils.CLAIM_USER_ID, Long.class)).isEqualTo(7L);
-        assertThat(claims.get(JwtUtils.CLAIM_ROLE, String.class)).isEqualTo("Client");
-        assertThat(jwtUtils.isTokenValidFor(claims, principle)).isTrue();
+    private UserPrinciple sampleUser() {
+        User user = new User();
+        user.setUserId(7L);
+        user.setEmail("alice@test.com");
+        user.setPassword("encoded");
+        user.setUsername("Alice");
+        user.setUserRole("Client");
+        return new UserPrinciple(user);
     }
 
     @Test
-    void rejectsExpiredToken() {
-        long now = System.currentTimeMillis();
-        String expired = jwtUtils.generateTokenWithExpiry(principle, new Date(now - 120_000), new Date(now - 60_000));
-        assertThatThrownBy(() -> jwtUtils.validateToken(expired)).isInstanceOf(CredentialsExpiredException.class);
+    void generatedTokenIsValidAndContainsTheEmail() {
+        JwtUtils jwtUtils = new JwtUtils(SECRET, 60000);
+        String token = jwtUtils.generateToken(sampleUser());
+
+        assertTrue(jwtUtils.validateToken(token));
+        assertEquals("alice@test.com", jwtUtils.getEmailFromToken(token));
     }
 
     @Test
-    void rejectsTamperedToken() {
-        assertThatThrownBy(() -> jwtUtils.validateToken("not.a.jwt")).isInstanceOf(BadCredentialsException.class);
+    void expiredTokenIsRejected() {
+        JwtUtils jwtUtils = new JwtUtils(SECRET, -1000);
+        String token = jwtUtils.generateToken(sampleUser());
+
+        assertFalse(jwtUtils.validateToken(token));
+    }
+
+    @Test
+    void tamperedTokenIsRejected() {
+        JwtUtils jwtUtils = new JwtUtils(SECRET, 60000);
+        String token = jwtUtils.generateToken(sampleUser()) + "x";
+
+        assertFalse(jwtUtils.validateToken(token));
+        assertFalse(jwtUtils.validateToken("not-a-token"));
+    }
+
+    @Test
+    void userPrincipleMapsRoleToAuthority() {
+        UserPrinciple user = sampleUser();
+        assertEquals("ROLE_CLIENT", user.getAuthorities().iterator().next().getAuthority());
+        assertTrue(user.isClient());
     }
 }

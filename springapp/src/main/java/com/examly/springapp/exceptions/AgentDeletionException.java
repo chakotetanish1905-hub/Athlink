@@ -1,13 +1,9 @@
 package com.examly.springapp.exceptions;
 
-import org.springframework.http.HttpStatus;
-
-/**
- * Thrown when a support agent cannot be deleted because of dependencies such as assigned tickets (409).
- */
-public class AgentDeletionException extends SupportSphereException {
+// Thrown when deleting a support agent fails (for example, the agent still has tickets).
+public class AgentDeletionException extends RuntimeException {
 
     public AgentDeletionException(String message) {
-        super(message, HttpStatus.CONFLICT);
+        super(message);
     }
 }

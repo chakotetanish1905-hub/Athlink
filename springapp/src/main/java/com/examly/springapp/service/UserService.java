@@ -1,15 +1,11 @@
 package com.examly.springapp.service;
 
 import com.examly.springapp.model.LoginDTO;
-import com.examly.springapp.model.LoginRequestDTO;
-import com.examly.springapp.model.UserRequestDTO;
-import com.examly.springapp.model.UserResponseDTO;
+import com.examly.springapp.model.User;
 
 public interface UserService {
 
-    /** Registers a new user: duplicate-email check, BCrypt encoding, persist. */
-    UserResponseDTO createUser(UserRequestDTO user);
+    User createUser(User user);
 
-    /** Authenticates through AuthenticationManager -> DaoAuthenticationProvider and issues a JWT. */
-    LoginDTO loginUser(LoginRequestDTO user);
+    LoginDTO loginUser(User user);
 }

@@ -19,7 +19,6 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.11.5</jjwt.version>
-        <springdoc.version>2.0.2</springdoc.version>
     </properties>
 
     <dependencies>
@@ -69,12 +68,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Swagger / OpenAPI (springdoc 2.0.x is the line for Spring Boot 3.0.x) -->
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>${springdoc.version}</version>
-        </dependency>
 
         <!-- Tests -->
         <dependency>

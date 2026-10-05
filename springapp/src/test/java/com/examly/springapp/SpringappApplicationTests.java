@@ -8,6 +8,6 @@ class SpringappApplicationTests {
 
     @Test
     void contextLoads() {
-        // Verifies the whole application context (security, JPA, Swagger) starts.
+        // Verifies the whole application context (security, JPA, controllers) starts.
     }
 }

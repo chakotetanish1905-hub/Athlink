@@ -1,23 +1,23 @@
 package com.examly.springapp.service;
 
 import java.util.List;
+import java.util.Optional;
 
-import com.examly.springapp.model.TicketRequestDTO;
-import com.examly.springapp.model.TicketResponseDTO;
+import com.examly.springapp.model.Ticket;
 
 public interface TicketService {
 
-    TicketResponseDTO addTicket(TicketRequestDTO ticket);
+    Ticket addTicket(Ticket ticket);
 
-    TicketResponseDTO getTicketById(Long ticketId);
+    Optional<Ticket> getTicketById(Long ticketId);
 
-    List<TicketResponseDTO> getAllTickets();
+    List<Ticket> getAllTickets();
 
-    TicketResponseDTO updateTicket(Long ticketId, TicketRequestDTO ticket);
+    Ticket updateTicket(Long ticketId, Ticket ticket);
 
-    TicketResponseDTO deleteTicket(Long ticketId);
+    Ticket deleteTicket(Long ticketId);
 
-    List<TicketResponseDTO> getTicketsByAgentId(Long agentId);
+    List<Ticket> getTicketsByAgentId(Long agentId);
 
-    List<TicketResponseDTO> getTicketsByUserId(Long userId);
+    List<Ticket> getTicketsByUserId(Long userId);
 }

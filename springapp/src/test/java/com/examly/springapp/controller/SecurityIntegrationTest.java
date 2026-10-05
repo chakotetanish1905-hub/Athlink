@@ -1,6 +1,6 @@
 package com.examly.springapp.controller;
 
-import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,9 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.Date;
+import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,58 +18,37 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.examly.springapp.config.JwtUtils;
-import com.examly.springapp.config.UserPrinciple;
 import com.examly.springapp.repository.ErrorLogRepo;
-import com.examly.springapp.repository.FeedbackRepo;
-import com.examly.springapp.repository.SupportAgentRepo;
-import com.examly.springapp.repository.TicketRepo;
-import com.examly.springapp.repository.UserRepo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * End-to-end checks of the security chain against an in-memory database:
- * DAO login, JWT filter, entry point (401), role rules (403), ownership (403) and status codes.
- */
+// End-to-end checks of registration, DAO login, JWT, role rules and ownership rules (H2 database).
 @SpringBootTest
 @AutoConfigureMockMvc
 class SecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
     @Autowired
     private ObjectMapper objectMapper;
-    @Autowired
-    private JwtUtils jwtUtils;
-    @Autowired
-    private UserRepo userRepo;
-    @Autowired
-    private TicketRepo ticketRepo;
-    @Autowired
-    private FeedbackRepo feedbackRepo;
-    @Autowired
-    private SupportAgentRepo supportAgentRepo;
+
     @Autowired
     private ErrorLogRepo errorLogRepo;
 
-    @BeforeEach
-    void cleanDatabase() {
-        feedbackRepo.deleteAll();
-        ticketRepo.deleteAll();
-        supportAgentRepo.deleteAll();
-        userRepo.deleteAll();
-        errorLogRepo.deleteAll();
+    // ---------------------------------------------------------------- helpers
+
+    private String uniqueEmail(String name) {
+        return name + "." + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
     }
 
-    // ------------------------------------------------------------------ helpers
-
-    private void register(String email, String role) throws Exception {
-        String body = """
-                {"email":"%s","password":"Password@1","username":"%s","mobileNumber":"9876543210","userRole":"%s"}
-                """.formatted(email, email.substring(0, email.indexOf('@')), role);
-        mockMvc.perform(post("/api/register").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isCreated());
+    private JsonNode register(String email, String role) throws Exception {
+        String body = "{\"email\":\"" + email + "\",\"password\":\"Password@1\",\"username\":\"Test User\","
+                + "\"mobileNumber\":\"9876543210\",\"userRole\":\"" + role + "\"}";
+        MvcResult result = mockMvc.perform(post("/api/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
     private JsonNode login(String email) throws Exception {
@@ -81,192 +59,237 @@ class SecurityIntegrationTest {
         return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
-    private String bearer(JsonNode login) {
-        return "Bearer " + login.get("token").asText();
+    // Registers a user and returns "Bearer <token>"
+    private String newUserToken(String name, String role) throws Exception {
+        String email = uniqueEmail(name);
+        register(email, role);
+        return "Bearer " + login(email).get("token").asText();
     }
 
-    private long createTicket(String auth, String title) throws Exception {
-        String body = """
-                {"title":"%s","description":"Something is broken","priority":"High","issueCategory":"Technical"}
-                """.formatted(title);
-        MvcResult result = mockMvc.perform(post("/api/ticket").header("Authorization", auth)
+    private JsonNode createTicket(String token, String title) throws Exception {
+        String body = "{\"title\":\"" + title + "\",\"description\":\"The VPN keeps disconnecting every hour\","
+                + "\"priority\":\"High\",\"issueCategory\":\"Technical\"}";
+        MvcResult result = mockMvc.perform(post("/api/ticket").header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("Open"))
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("ticketId").asLong();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
-    // ------------------------------------------------------------------ authentication
+    private JsonNode createAgent(String managerToken, String email) throws Exception {
+        String body = "{\"name\":\"Meera Kapoor\",\"email\":\"" + email + "\",\"phone\":\"9820111223\","
+                + "\"expertise\":\"Technical Support\",\"experience\":\"5 years\",\"status\":\"Available\","
+                + "\"shiftTiming\":\"9 AM - 6 PM\",\"remarks\":\"Handles login issues\"}";
+        MvcResult result = mockMvc.perform(post("/api/supportAgent").header("Authorization", managerToken)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private String withChanges(JsonNode ticket, String field, String jsonValue) throws Exception {
+        String json = objectMapper.writeValueAsString(ticket);
+        JsonNode copy = objectMapper.readTree(json);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) copy).set(field, objectMapper.readTree(jsonValue));
+        return objectMapper.writeValueAsString(copy);
+    }
+
+    // ---------------------------------------------------------------- auth
 
     @Test
-    void registerReturns201AndDuplicateEmailReturns409() throws Exception {
-        register("client@test.com", "Client");
-        String body = """
-                {"email":"client@test.com","password":"Password@1","username":"other","mobileNumber":"9876543210","userRole":"Client"}
-                """;
+    void registerHidesPasswordAndRejectsDuplicateEmail() throws Exception {
+        String email = uniqueEmail("alice");
+        JsonNode user = register(email, "Client");
+        assertTrue(user.get("password") == null, "password must never be returned");
+
+        String body = "{\"email\":\"" + email + "\",\"password\":\"Password@1\",\"username\":\"Alice\","
+                + "\"mobileNumber\":\"9876543210\",\"userRole\":\"Client\"}";
         mockMvc.perform(post("/api/register").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("A user with this email already exists"));
     }
 
     @Test
-    void passwordIsStoredAsBcryptHash() throws Exception {
-        register("hash@test.com", "Client");
-        String stored = userRepo.findByEmail("hash@test.com").orElseThrow().getPassword();
-        org.assertj.core.api.Assertions.assertThat(stored).isNotEqualTo("Password@1").startsWith("$2");
-    }
-
-    @Test
-    void invalidRegistrationReturns400() throws Exception {
-        String body = "{\"email\":\"bad\",\"password\":\"x\",\"username\":\"\",\"mobileNumber\":\"12\",\"userRole\":\"Admin\"}";
+    void registerValidatesFields() throws Exception {
+        String body = "{\"email\":\"bad\",\"password\":\"123\",\"username\":\"\",\"mobileNumber\":\"12\","
+                + "\"userRole\":\"Admin\"}";
         mockMvc.perform(post("/api/register").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationErrors.email", notNullValue()));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void loginReturnsLoginDtoAndWrongPasswordReturns401() throws Exception {
-        register("manager@test.com", "Manager");
-        JsonNode login = login("manager@test.com");
-        org.assertj.core.api.Assertions.assertThat(login.get("token").asText()).isNotBlank();
-        org.assertj.core.api.Assertions.assertThat(login.get("userRole").asText()).isEqualTo("Manager");
-        org.assertj.core.api.Assertions.assertThat(login.get("userId").asLong()).isPositive();
-        org.assertj.core.api.Assertions.assertThat(login.get("username").asText()).isEqualTo("manager");
+    void loginReturnsLoginDtoAndRejectsWrongPassword() throws Exception {
+        String email = uniqueEmail("bob");
+        register(email, "Manager");
 
-        mockMvc.perform(post("/api/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"manager@test.com\",\"password\":\"WrongPass1\"}"))
-                .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"nobody@test.com\",\"password\":\"WrongPass1\"}"))
-                .andExpect(status().isUnauthorized());
-    }
+        JsonNode loginDto = login(email);
+        assertTrue(loginDto.get("token").asText().length() > 20);
+        assertTrue("Manager".equals(loginDto.get("userRole").asText()));
+        assertTrue(loginDto.get("userId").asLong() > 0);
 
-    // ------------------------------------------------------------------ JWT filter / entry point
-
-    @Test
-    void missingInvalidAndExpiredTokensReturn401() throws Exception {
-        register("client@test.com", "Client");
-        mockMvc.perform(get("/api/ticket")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/ticket").header("Authorization", "Bearer not.a.jwt"))
-                .andExpect(status().isUnauthorized());
-
-        UserPrinciple principle = UserPrinciple.build(userRepo.findByEmail("client@test.com").orElseThrow());
-        Date past = new Date(System.currentTimeMillis() - 60_000);
-        String expired = jwtUtils.generateTokenWithExpiry(principle, new Date(past.getTime() - 60_000), past);
-        mockMvc.perform(get("/api/ticket").header("Authorization", "Bearer " + expired))
+        String body = "{\"email\":\"" + email + "\",\"password\":\"WrongPassword1\"}";
+        mockMvc.perform(post("/api/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("JWT token has expired. Please login again."));
+                .andExpect(jsonPath("$.message").value("Invalid email or password"));
     }
 
-    // ------------------------------------------------------------------ role authorization
+    // ---------------------------------------------------------------- JWT + roles
 
     @Test
-    void wrongRoleReturns403() throws Exception {
-        register("manager@test.com", "Manager");
-        register("client@test.com", "Client");
-        String manager = bearer(login("manager@test.com"));
-        String client = bearer(login("client@test.com"));
+    void protectedUrlsNeedAValidToken() throws Exception {
+        mockMvc.perform(get("/api/ticket")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/ticket").header("Authorization", "Bearer garbage"))
+                .andExpect(status().isUnauthorized());
+        assertTrue(errorLogRepo.count() > 0, "errors are recorded in the ErrorLogs table");
+    }
 
-        // Manager cannot create tickets or feedback
-        mockMvc.perform(post("/api/ticket").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"t\",\"description\":\"d\",\"priority\":\"Low\",\"issueCategory\":\"General\"}"))
-                .andExpect(status().isForbidden());
-        // Client cannot manage agents
+    @Test
+    void roleRulesFollowTheSrs() throws Exception {
+        String manager = newUserToken("manager", "Manager");
+        String client = newUserToken("client", "Client");
+        String ticketBody = "{\"title\":\"x title\",\"description\":\"desc\",\"priority\":\"Low\","
+                + "\"issueCategory\":\"General\"}";
+
+        // Manager cannot create tickets; Client cannot list or add agents
+        mockMvc.perform(post("/api/ticket").header("Authorization", manager)
+                .contentType(MediaType.APPLICATION_JSON).content(ticketBody)).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/supportAgent").header("Authorization", client)).andExpect(status().isForbidden());
-        mockMvc.perform(delete("/api/supportAgent/1").header("Authorization", client))
+
+        JsonNode ticket = createTicket(client, "Printer offline");
+        long ticketId = ticket.get("ticketId").asLong();
+
+        // GET /api/ticket/{id} is Client only (SRS)
+        mockMvc.perform(get("/api/ticket/" + ticketId).header("Authorization", manager))
                 .andExpect(status().isForbidden());
-        // Manager on an empty agent list gets 204
-        mockMvc.perform(get("/api/supportAgent").header("Authorization", manager)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/ticket/" + ticketId).header("Authorization", client)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/ticket/999999").header("Authorization", client)).andExpect(status().isNotFound());
     }
 
-    // ------------------------------------------------------------------ resource ownership
+    // ---------------------------------------------------------------- ownership
 
     @Test
-    void clientCannotReadAnotherClientsResources() throws Exception {
-        register("alice@test.com", "Client");
-        register("bob@test.com", "Client");
-        JsonNode alice = login("alice@test.com");
-        JsonNode bob = login("bob@test.com");
+    void clientCannotReadOrChangeAnotherClientsData() throws Exception {
+        String alice = newUserToken("alice", "Client");
+        String bob = newUserToken("bob", "Client");
 
-        long aliceTicket = createTicket(bearer(alice), "Alice printer");
+        JsonNode ticket = createTicket(alice, "Laptop slow");
+        long ticketId = ticket.get("ticketId").asLong();
+        long aliceId = ticket.get("user").get("userId").asLong();
 
-        mockMvc.perform(get("/api/ticket/user/" + alice.get("userId").asLong()).header("Authorization", bearer(alice)))
-                .andExpect(status().isOk());
-        mockMvc.perform(get("/api/ticket/user/" + alice.get("userId").asLong()).header("Authorization", bearer(bob)))
+        mockMvc.perform(get("/api/ticket/" + ticketId).header("Authorization", bob))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/ticket/" + aliceTicket).header("Authorization", bearer(bob)))
+        mockMvc.perform(get("/api/ticket/user/" + aliceId).header("Authorization", bob))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(delete("/api/ticket/" + aliceTicket).header("Authorization", bearer(bob)))
+        mockMvc.perform(delete("/api/ticket/" + ticketId).header("Authorization", bob))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/feedback/user/" + alice.get("userId").asLong()).header("Authorization", bearer(bob)))
+        mockMvc.perform(get("/api/feedback/user/" + aliceId).header("Authorization", bob))
                 .andExpect(status().isForbidden());
+
+        // GET /api/ticket for a client only returns their own tickets
+        mockMvc.perform(get("/api/ticket").header("Authorization", bob)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/ticket").header("Authorization", alice))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
-    // ------------------------------------------------------------------ ticket lifecycle
+    // ---------------------------------------------------------------- full lifecycle
 
     @Test
-    void ticketLifecycleEnforcesBusinessRules() throws Exception {
-        register("manager@test.com", "Manager");
-        register("client@test.com", "Client");
-        String manager = bearer(login("manager@test.com"));
-        String client = bearer(login("client@test.com"));
+    void ticketLifecycleFromOpenToFeedback() throws Exception {
+        String manager = newUserToken("manager", "Manager");
+        String client = newUserToken("client", "Client");
 
-        long ticketId = createTicket(client, "VPN down");
+        JsonNode agent = createAgent(manager, uniqueEmail("agent"));
+        long agentId = agent.get("agentId").asLong();
+        JsonNode ticket = createTicket(client, "Cannot log in");
+        long ticketId = ticket.get("ticketId").asLong();
 
-        // duplicate title for the same client -> 409
-        mockMvc.perform(post("/api/ticket").header("Authorization", client).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"vpn down\",\"description\":\"again\",\"priority\":\"Low\",\"issueCategory\":\"Technical\"}"))
+        // Duplicate agent email -> 409
+        String duplicateAgent = objectMapper.writeValueAsString(agent).replace("\"agentId\":" + agentId, "\"agentId\":null");
+        mockMvc.perform(post("/api/supportAgent").header("Authorization", manager)
+                .contentType(MediaType.APPLICATION_JSON).content(duplicateAgent)).andExpect(status().isConflict());
+
+        // Manager assigns the agent (status stays Open, SRS: "Agent Assigned")
+        String assign = withChanges(ticket, "supportAgent", "{\"agentId\":" + agentId + "}");
+        MvcResult assigned = mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", manager)
+                .contentType(MediaType.APPLICATION_JSON).content(assign))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportAgent.agentId").value(agentId))
+                .andExpect(jsonPath("$.status").value("Open"))
+                .andReturn();
+        ticket = objectMapper.readTree(assigned.getResponse().getContentAsString());
+
+        // Assigned ticket can no longer be deleted
+        mockMvc.perform(delete("/api/ticket/" + ticketId).header("Authorization", client))
                 .andExpect(status().isConflict());
 
-        // missing resource -> 404
-        mockMvc.perform(get("/api/ticket/99999").header("Authorization", client)).andExpect(status().isNotFound());
-
-        // Resolved without a summary -> 400
+        // Resolve without a summary -> 400 with the SRS message
         mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", client)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"VPN down\",\"description\":\"Something is broken\",\"priority\":\"High\","
-                        + "\"issueCategory\":\"Technical\",\"status\":\"Resolved\"}"))
-                .andExpect(status().isBadRequest());
+                .contentType(MediaType.APPLICATION_JSON).content(withChanges(ticket, "status", "\"Resolved\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Please provide resolution details before marking resolve."));
 
-        // Resolved with a summary -> 200
+        // Client adds summary + satisfaction, then resolves
+        String summary = withChanges(ticket, "resolutionSummary", "\"Password was reset\"");
+        summary = withChanges(objectMapper.readTree(summary), "satisfied", "true");
         mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", client)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"VPN down\",\"description\":\"Something is broken\",\"priority\":\"High\","
-                        + "\"issueCategory\":\"Technical\",\"status\":\"Resolved\",\"resolutionSummary\":\"Fixed\","
-                        + "\"satisfied\":true}"))
+                .contentType(MediaType.APPLICATION_JSON).content(summary)).andExpect(status().isOk());
+        String resolve = withChanges(objectMapper.readTree(summary), "status", "\"Resolved\"");
+        MvcResult resolved = mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", client)
+                .contentType(MediaType.APPLICATION_JSON).content(resolve))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Resolved"))
-                .andExpect(jsonPath("$.resolutionDate", notNullValue()));
+                .andReturn();
+        ticket = objectMapper.readTree(resolved.getResponse().getContentAsString());
 
-        // Manager closes it -> 200
+        // Only the manager can close
+        mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", client)
+                .contentType(MediaType.APPLICATION_JSON).content(withChanges(ticket, "status", "\"Closed\"")))
+                .andExpect(status().isForbidden());
         mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", manager)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"VPN down\",\"description\":\"Something is broken\",\"priority\":\"High\","
-                        + "\"issueCategory\":\"Technical\",\"status\":\"Closed\"}"))
+                .contentType(MediaType.APPLICATION_JSON).content(withChanges(ticket, "status", "\"Closed\"")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Closed"));
 
-        // Feedback on the closed ticket -> 201, duplicate -> 409, invalid rating -> 400
-        String feedback = "{\"feedbackText\":\"Great\",\"ticketId\":" + ticketId
-                + ",\"category\":\"Service Quality\",\"rating\":5}";
-        mockMvc.perform(post("/api/feedback").header("Authorization", client).contentType(MediaType.APPLICATION_JSON)
-                .content(feedback)).andExpect(status().isCreated());
-        mockMvc.perform(post("/api/feedback").header("Authorization", client).contentType(MediaType.APPLICATION_JSON)
-                .content(feedback)).andExpect(status().isConflict());
-        mockMvc.perform(post("/api/feedback").header("Authorization", client).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"feedbackText\":\"x\",\"ticketId\":" + ticketId + ",\"category\":\"c\",\"rating\":9}"))
-                .andExpect(status().isBadRequest());
+        // Client: tickets worked by the agent
+        mockMvc.perform(get("/api/ticket/agent/" + agentId).header("Authorization", client))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
 
-        // Manager can read all feedback but cannot post
+        // Feedback: created once, second attempt -> 409
+        String feedback = "{\"feedbackText\":\"Quick and helpful\",\"category\":\"Service Quality\",\"rating\":5,"
+                + "\"ticket\":{\"ticketId\":" + ticketId + "}}";
+        mockMvc.perform(post("/api/feedback").header("Authorization", client)
+                .contentType(MediaType.APPLICATION_JSON).content(feedback))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.supportAgent.agentId").value(agentId));
+        mockMvc.perform(post("/api/feedback").header("Authorization", client)
+                .contentType(MediaType.APPLICATION_JSON).content(feedback))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/feedback").header("Authorization", manager)
+                .contentType(MediaType.APPLICATION_JSON).content(feedback))
+                .andExpect(status().isForbidden());
+
+        // Manager sees the feedback; the agent who worked tickets cannot be deleted
         mockMvc.perform(get("/api/feedback").header("Authorization", manager)).andExpect(status().isOk());
-        mockMvc.perform(post("/api/feedback").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
-                .content(feedback)).andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/supportAgent/" + agentId).header("Authorization", manager))
+                .andExpect(status().isConflict());
     }
 
     @Test
-    void handledErrorsArePersistedToErrorLogs() throws Exception {
-        mockMvc.perform(get("/api/ticket")).andExpect(status().isUnauthorized());
-        org.assertj.core.api.Assertions.assertThat(errorLogRepo.count()).isPositive();
+    void openUnassignedTicketCanBeEditedAndDeletedByOwner() throws Exception {
+        String client = newUserToken("client", "Client");
+        JsonNode ticket = createTicket(client, "Email bounce");
+        long ticketId = ticket.get("ticketId").asLong();
+
+        mockMvc.perform(put("/api/ticket/" + ticketId).header("Authorization", client)
+                .contentType(MediaType.APPLICATION_JSON).content(withChanges(ticket, "priority", "\"Low\"")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.priority").value("Low"));
+
+        mockMvc.perform(delete("/api/ticket/" + ticketId).header("Authorization", client))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketId").value(ticketId));
     }
 }

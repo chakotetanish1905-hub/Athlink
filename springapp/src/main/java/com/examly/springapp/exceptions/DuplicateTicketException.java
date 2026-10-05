@@ -1,9 +1,7 @@
 package com.examly.springapp.exceptions;
 
-/**
- * Thrown when attempting to create a ticket that duplicates an existing ticket title for the same client (409).
- */
-public class DuplicateTicketException extends DuplicateResourceException {
+// Thrown when a client raises a ticket with a title they have already used.
+public class DuplicateTicketException extends RuntimeException {
 
     public DuplicateTicketException(String message) {
         super(message);
