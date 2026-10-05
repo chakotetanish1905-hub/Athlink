@@ -86,6 +86,8 @@ public class SecurityConfig {
             auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
             auth.requestMatchers(HttpMethod.POST, "/api/register", "/api/login").permitAll();
             auth.requestMatchers("/error").permitAll();
+            // Phase 2 FAQ chatbot: usable without logging in
+            auth.requestMatchers("/api/chat", "/api/chat/**", "/api/faqs").permitAll();
 
             if (publicReadEndpoints) {
                 auth.requestMatchers(HttpMethod.GET, "/api/ticket", "/api/feedback").permitAll();

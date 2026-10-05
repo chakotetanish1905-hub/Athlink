@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "category": "Tickets",
+    "question": "How do I create or raise a new ticket?",
+    "answer": "Log in as a Client and choose Add Ticket (or Create New Ticket on the Home page). Enter a title, a description, a priority (High, Medium or Low) and an issue category (Technical, Billing or General), then select Add Ticket. Every new ticket starts with the status Open."
+  },
+  {
+    "id": 2,
+    "category": "Tickets",
+    "question": "How do I edit or delete my ticket?",
+    "answer": "Open View Tickets and use the Edit or Delete button on the ticket. You can edit or delete a ticket only while it is Open and no support agent has been assigned. Once a manager assigns an agent, the ticket can no longer be changed."
+  },
+  {
+    "id": 3,
+    "category": "Tickets",
+    "question": "How do I check or track my ticket status?",
+    "answer": "Open View Tickets to see all your tickets with their status: Open, In Progress, Resolved or Closed. Select a ticket to see its details, the assigned agent and a timeline of its progress. You can search by title or category and filter by priority."
+  },
+  {
+    "id": 4,
+    "category": "Tickets",
+    "question": "How do I mark my ticket as resolved?",
+    "answer": "After an agent has worked on your ticket, open it and choose Provide Summary. Enter a resolution summary, select whether you are satisfied, and confirm. Then choose Mark as Resolved. A resolution summary is required before a ticket can be marked Resolved."
+  },
+  {
+    "id": 5,
+    "category": "Tickets",
+    "question": "Who closes a ticket?",
+    "answer": "Only a manager can close a ticket, and only after the client has marked it Resolved. Once a ticket is Closed, no further changes are possible, but the client can still view the resolution summary and write a review."
+  },
+  {
+    "id": 6,
+    "category": "Tickets",
+    "question": "What do High, Medium and Low ticket priority levels mean?",
+    "answer": "High means work is blocked or many users are affected. Medium means work is impacted but a workaround exists. Low is for questions or minor inconveniences. Choose the priority when you create the ticket."
+  },
+  {
+    "id": 7,
+    "category": "Support Agents",
+    "question": "How are support agents assigned to tickets?",
+    "answer": "A manager assigns agents. SupportSphere suggests available agents whose expertise matches the ticket's issue category, and the manager can also choose any available agent manually. Only agents marked Available can be assigned."
+  },
+  {
+    "id": 8,
+    "category": "Support Agents",
+    "question": "Where can I see the agents who worked on my tickets?",
+    "answer": "Open View Agents from the menu. It shows every support agent assigned to your tickets. Select Tickets Worked on an agent card to see the tickets that agent handled for you."
+  },
+  {
+    "id": 9,
+    "category": "Support Agents",
+    "question": "How does a manager add or update a support agent?",
+    "answer": "Managers choose Add Support Agent and fill in the name, email, phone, expertise, experience, shift timing, availability and remarks, with an optional profile or resume. Agents can be edited, made available or unavailable, or deleted from View Support Agents."
+  },
+  {
+    "id": 10,
+    "category": "Feedbacks",
+    "question": "How do I give feedback or write a review for an agent?",
+    "answer": "Once your ticket is Resolved or Closed, choose Write a Review from the ticket or from Tickets Worked on the agent's card. Select the ticket, pick a category, give a rating from 1 to 5 stars and write your comment. Each ticket can be reviewed once."
+  },
+  {
+    "id": 11,
+    "category": "Feedbacks",
+    "question": "Can I view or delete feedback I posted?",
+    "answer": "Yes. Open My Feedbacks to see every review you have written, with the ticket and agent details. Use the Delete button on a feedback card and confirm to remove it."
+  },
+  {
+    "id": 12,
+    "category": "Feedbacks",
+    "question": "Who can see my feedback?",
+    "answer": "Managers can see all client feedback, including the rating, comment, category, ticket and agent. Other clients cannot see your feedback."
+  },
+  {
+    "id": 13,
+    "category": "Account",
+    "question": "How do I sign up and create an account?",
+    "answer": "Choose Sign up on the login page and enter your username, email, 10-digit mobile number, role (Manager or Client) and a password of at least 8 characters with a letter, a number and a symbol. Each email can be registered only once."
+  },
+  {
+    "id": 14,
+    "category": "Account",
+    "question": "Why can't I log in to my account?",
+    "answer": "Check that you are using the email and password you registered with. If you see Invalid Email or Password, the email or password is incorrect. If your session has expired, simply log in again."
+  },
+  {
+    "id": 15,
+    "category": "Account",
+    "question": "How do I log out?",
+    "answer": "Select Log out in the sidebar, or open your profile menu in the top-right corner and choose Log out, then confirm. You will return to the login page."
+  }
+]

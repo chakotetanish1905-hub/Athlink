@@ -1,0 +1,64 @@
+<!-- Chat window -->
+<section *ngIf="open" class="chat" role="dialog" aria-label="SupportSphere AI assistant">
+  <div class="chat-h">
+    <span class="bot-av"><span class="ic i-sparkles ic-18"></span></span>
+    <div class="grow"><div class="chat-t">SupportSphere AI</div><div class="chat-s">Answers from the SupportSphere FAQs.</div></div>
+    <button type="button" class="icon-btn sm" (click)="clear()" aria-label="Clear conversation" title="Clear conversation"><span class="ic i-trash"></span></button>
+    <button type="button" class="icon-btn sm" (click)="toggle()" aria-label="Close assistant" title="Close"><span class="ic i-x"></span></button>
+  </div>
+
+  <div class="chat-b">
+    <div class="chat-inner" aria-live="polite">
+      <div *ngFor="let b of bubbles" class="msg" [class.me]="b.from === 'user'" [class.bot]="b.from === 'bot'" [class.errm]="b.failed">
+        <span *ngIf="b.from === 'bot'" class="bot-av sm" aria-hidden="true"><span class="ic i-sparkles ic-14"></span></span>
+        <div style="min-width:0">
+          <span class="sr-only">{{ b.from === 'user' ? 'You' : 'SupportSphere AI' }}</span>
+          <div class="bubble">{{ b.text }}</div>
+
+          <!-- Matched FAQ + confidence -->
+          <div *ngIf="b.response?.matched" class="faq-tag">
+            <span class="tg"><span class="ic i-circle-check ic-12"></span>Matched FAQ · {{ b.response?.category }}
+              <span class="conf" title="Confidence">{{ confidencePercent(b.response!) }}</span></span>
+            <span>“{{ b.response?.matchedQuestion }}”</span>
+            <div class="conf-bar"><i [style.width]="confidencePercent(b.response!)"></i></div>
+            <span class="src">{{ sourceLabel(b.response!) }}</span>
+          </div>
+          <div *ngIf="b.response && !b.response.matched" class="faq-tag nomatch">
+            <span class="tg"><span class="ic i-info ic-12"></span>No FAQ match<span class="conf">{{ confidencePercent(b.response) }}</span></span>
+            <span>Try rephrasing, or raise a ticket for the support team.</span>
+          </div>
+
+          <button *ngIf="b.failed" type="button" class="btn btn-sec btn-sm" style="margin-top:8px" (click)="retry(b)"><span class="ic i-refresh ic-14"></span>Retry</button>
+        </div>
+      </div>
+
+      <div *ngIf="typing" class="msg bot">
+        <span class="bot-av sm" aria-hidden="true"><span class="ic i-sparkles ic-14"></span></span>
+        <div class="typing" role="status" aria-label="SupportSphere AI is typing"><i></i><i></i><i></i></div>
+      </div>
+
+      <div *ngIf="showSuggestions" class="sugg">
+        <div class="sugg-h">Popular questions</div>
+        <button *ngFor="let q of suggestions" type="button" class="sugg-chip" (click)="send(q)">{{ q }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-f">
+    <form class="chat-form" (ngSubmit)="send()">
+      <label class="sr-only" for="chat-in">Message SupportSphere AI</label>
+      <input id="chat-in" name="message" placeholder="Ask anything..." autocomplete="off" maxlength="1000" [(ngModel)]="message">
+      <button class="send" type="submit" [disabled]="!message.trim() || typing" aria-label="Send message"><span class="ic i-send"></span></button>
+    </form>
+    <div class="chat-actions">
+      <span class="chat-foot" style="margin:0">Answers are grounded in SupportSphere FAQs</span>
+      <button type="button" class="clear-btn" (click)="clear()"><span class="ic i-trash ic-12"></span>Clear</button>
+    </div>
+  </div>
+</section>
+
+<!-- Floating launcher -->
+<button type="button" class="chat-fab" (click)="toggle()" [attr.aria-label]="open ? 'Close SupportSphere AI' : 'Open SupportSphere AI'"
+        [attr.aria-expanded]="open" title="SupportSphere AI">
+  <span class="ic ic-24" [class.i-sparkles]="!open" [class.i-x]="open"></span>
+</button>

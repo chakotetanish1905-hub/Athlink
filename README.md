@@ -8,6 +8,7 @@ Clients raise tickets, managers assign support agents, clients confirm the fix a
 | `springapp/` | Java 17, Spring Boot 3.0.1, Spring Data JPA, Spring Security + JWT, Bean Validation | **8080** |
 | `angularapp/` | Angular 16, TypeScript, template-driven forms | **8081** |
 | Database | MySQL, database **`appdb`** (created automatically) | 3306 |
+| AI (Phase 2, optional) | Google Gemini API via Java `HttpClient` | - |
 
 ---
 
@@ -22,7 +23,7 @@ mvn spring-boot:run
 
 MySQL settings live in `springapp/src/main/resources/application.properties`
 (user `root`, password `examly`, or set `DB_USERNAME` / `DB_PASSWORD`).
-Hibernate creates the tables: `users`, `ticket`, `support_agent`, `feedback`, `ErrorLogs`.
+Hibernate creates the tables: `users`, `ticket`, `support_agent`, `feedback`, `ErrorLogs`, `faqs`, `chat_messages`.
 
 | Property | Default | Environment variable |
 |---|---|---|
@@ -212,6 +213,84 @@ desktop / tablet / phone breakpoints). Every screen uses real API data - nothing
 
 ### Deliberately not included
 
-These appear in the UI mockup but are not part of the core SRS functionality, so they were left out instead of being
-shown as buttons that do nothing: AI assistant / FAQ chatbot (the SRS "Phase 2" appendix), notifications,
-settings, profile editing, forgot password and the prototype's demo-account controls.
+These appear in the UI mockup but are not part of the SRS functionality, so they were left out instead of being
+shown as buttons that do nothing: notifications, settings, profile editing, forgot password and the prototype's
+demo-account controls.
+
+---
+
+## 6. Phase 2 - AI FAQ chatbot
+
+A floating **SupportSphere AI** widget (bottom-right, on every page, also before login) answers questions about
+tickets, support agents, feedback and account actions **from the FAQ knowledge base only**. It never performs actions
+(it cannot create, edit or delete anything).
+
+### How it works
+
+```
+POST /api/chat {message, sessionId?}
+  -> ChatService
+       1. ConversationMemory: last 8 turns of the session
+       2. follow-up -> standalone question ("What about editing it?" -> about tickets)
+            Gemini enabled: Gemini rewrites it   |   no key: borrow the topic of the previous question
+       3. FaqService.findBestMatch(question, embedding)
+            Gemini enabled: cosine similarity with the FAQ embeddings (threshold 0.65)   -> source "semantic"
+            no key / Gemini error: Jaccard word overlap with the FAQ questions (0.08)     -> source "lexical"
+       4. reply: matched -> Gemini answer grounded in that FAQ (or the FAQ answer itself without Gemini)
+                 no match -> "I couldn't find that in the SupportSphere FAQs ..."
+       5. turn saved in ConversationMemory and in the chat_messages table
+  -> ChatResponse {reply, matched, matchedQuestion, category, confidence, source, sessionId, resolvedQuestion}
+```
+
+* `faqs.json` (15 FAQs) is seeded into the `faqs` table on startup **once**, with embeddings when Gemini is enabled,
+  then loaded into memory. FAQs seeded without a key get their embedding the first time the app starts with one.
+* Gemini is called with Java's built-in `HttpClient` and Jackson - no SDK, Spring AI or LangChain.
+  The API key is sent in the `x-goog-api-key` header and is never logged or stored.
+* Embeddings are stored as text through `EmbeddingConverter` (JPA `AttributeConverter`) and are never returned by the API.
+
+### Configuration
+
+| Property | Default |
+|---|---|
+| `gemini.api.key` | `${GEMINI_API_KEY:}` - empty means lexical fallback |
+| `gemini.embedding.model` | `gemini-embedding-2` |
+| `gemini.generation.model` | `gemini-2.5-flash` |
+| `chatbot.similarity.threshold` | `0.65` |
+| `chatbot.lexical.threshold` | `0.08` |
+
+```bash
+export GEMINI_API_KEY=<your key>     # optional
+cd springapp && mvn spring-boot:run
+```
+
+### Endpoints (all public - `/api/chat`, `/api/chat/**` and `/api/faqs` are in `permitAll()`)
+
+| Method | URL | Response |
+|---|---|---|
+| POST | `/api/chat` | 200 ChatResponse (400 for an empty message) |
+| GET | `/api/chat/history/{sessionId}` | 200 saved transcript (`List<ChatMessage>`), oldest first |
+| DELETE | `/api/chat/memory/{sessionId}` | 204 - clears the short-term memory only (the transcript is kept) |
+| GET | `/api/faqs` | 200 all FAQs, without embedding vectors |
+
+The existing JWT security, roles and ownership checks are unchanged.
+
+### Code
+
+```
+springapp
+├── controller/ChatController.java
+├── model/        FaqEntity (faqs), ChatMessage (chat_messages), Faq (faqs.json), EmbeddingConverter,
+│                 ChatRequest, ChatResponse
+├── repository/   FaqRepository, ChatMessageRepository
+├── service/      GeminiService, FaqService, ConversationMemory, ChatService
+└── resources/faqs.json
+
+angularapp/src/app
+├── components/chatbot/   floating widget, mounted once in app.component.html
+├── models/chat.model.ts  ChatRequest, ChatResponse, ChatBubble
+└── services/chat.service.ts  sendMessage(request), clearMemory(sessionId)
+```
+
+The widget keeps the `sessionId` in `sessionStorage` so follow-up questions keep their memory, shows the matched FAQ,
+confidence and source (Semantic FAQ / Offline FAQ) under each answer, and **Clear** calls
+`DELETE /api/chat/memory/{sessionId}` and starts a new conversation.

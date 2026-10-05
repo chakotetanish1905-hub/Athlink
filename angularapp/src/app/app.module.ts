@@ -5,6 +5,7 @@ import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { ChatbotComponent } from './components/chatbot/chatbot.component';
 import { ClientViewTicketsComponent } from './components/client-view-tickets/client-view-tickets.component';
 import { ClientnavComponent } from './components/clientnav/clientnav.component';
 import { ClientpostfeedbackComponent } from './components/clientpostfeedback/clientpostfeedback.component';
@@ -43,7 +44,8 @@ import { AuthInterceptor } from './interceptors/auth.interceptor';
     SupportedAgentsComponent,
     ClientpostfeedbackComponent,
     ClientviewfeedbackComponent,
-    ErrorComponent
+    ErrorComponent,
+    ChatbotComponent
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, AppRoutingModule],
   providers: [{ provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true }],
