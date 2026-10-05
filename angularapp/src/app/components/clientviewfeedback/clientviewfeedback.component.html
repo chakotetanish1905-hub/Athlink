@@ -1,54 +1,117 @@
 <div class="page">
-  <h2 class="page-title">My Feedback</h2>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">My Feedback</h1>
+      <p class="page-sub">Reviews you’ve written for resolved tickets.</p>
+    </div>
+    <a class="btn btn-pri" routerLink="/client/feedback/add"><span class="ic i-plus"></span>Write Feedback</a>
+  </div>
 
-  <div class="table-wrapper">
-    <table class="data-table" id="myFeedbackTable">
-      <thead>
-        <tr><th>S.No</th><th>Feedback</th><th>Rating</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let feedback of feedbacks; let i = index">
-          <td>{{ i + 1 }}</td>
-          <td>{{ feedback.feedbackText }}</td>
-          <td>{{ feedback.rating }}</td>
-          <td>
-            <div class="actions">
-              <button type="button" class="btn btn-success btn-sm" [disabled]="!feedback.supportAgent"
-                      (click)="agentInfo = feedback">View Agent Info</button>
-              <button type="button" class="btn btn-success btn-sm" (click)="ticketInfo = feedback">View Ticket Info</button>
-              <button type="button" class="btn btn-info btn-sm" (click)="feedbackToDelete = feedback">Delete</button>
-            </div>
-          </td>
-        </tr>
-        <tr *ngIf="!loading && feedbacks.length === 0">
-          <td colspan="4" class="no-records">No data found</td>
-        </tr>
-      </tbody>
-    </table>
+  <div *ngIf="loading" class="fb-grid">
+    <div class="card card-b" *ngFor="let x of [1,2]"><div class="sk sk-l" style="width:40%;margin-bottom:14px"></div><div class="sk sk-l" style="margin-bottom:8px"></div><div class="sk sk-l" style="width:70%"></div></div>
+  </div>
+
+  <section *ngIf="errorMessage" class="card"><div class="err-page" role="alert">
+    <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+    <h1 class="err-t">Unable to load your feedback</h1><p class="err-d">{{ errorMessage }}</p>
+    <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadFeedbacks()"><span class="ic i-refresh"></span>Retry</button></div>
+  </div></section>
+
+  <ng-container *ngIf="!loading && !errorMessage">
+    <div *ngIf="feedbacks.length > 0" class="sum-strip">
+      <div class="card kpi"><div class="kpi-top"><span class="kpi-lbl">Average rating</span><span class="kpi-ic k-warn"><span class="ic i-star"></span></span></div>
+        <div class="row" style="margin-top:10px;gap:10px"><span class="kpi-num" style="margin:0">{{ averageRating.toFixed(1) }}</span>
+          <span class="stars-ro"><span *ngFor="let s of ui.stars(roundedAverage)" class="ic i-star" [ngClass]="s"></span></span></div></div>
+      <div class="card kpi"><div class="kpi-top"><span class="kpi-lbl">Reviews written</span><span class="kpi-ic k-pri"><span class="ic i-message"></span></span></div><div class="kpi-num">{{ feedbacks.length }}</div></div>
+      <div class="card kpi"><div class="kpi-top"><span class="kpi-lbl">Rated 4★ or higher</span><span class="kpi-ic k-ok"><span class="ic i-smile"></span></span></div><div class="kpi-num">{{ positivePercent }}</div></div>
+    </div>
+
+    <div *ngIf="feedbacks.length > 0" class="filters-row">
+      <label class="label" for="fb-cat">Category</label>
+      <select id="fb-cat" class="select" style="width:220px" [(ngModel)]="categoryFilter">
+        <option value="">All categories</option>
+        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+      </select>
+      <span class="muted" style="font-size:13px">Showing {{ filteredFeedbacks.length }} of {{ feedbacks.length }}</span>
+    </div>
+
+    <div *ngIf="filteredFeedbacks.length > 0" class="fb-grid">
+      <article class="card fb-card" *ngFor="let f of filteredFeedbacks">
+        <div class="row" style="justify-content:space-between">
+          <span class="stars-ro" role="img" [attr.aria-label]="f.rating + ' out of 5 stars'"><span *ngFor="let s of ui.stars(f.rating)" class="ic i-star" [ngClass]="s"></span></span>
+          <span class="chip">{{ f.category }}</span>
+        </div>
+        <p class="fb-text">“{{ f.feedbackText }}”</p>
+        <div class="fb-meta">
+          <span><span class="ic i-ticket ic-14"></span>#{{ f.ticket?.ticketId }} · {{ f.ticket?.title }}</span>
+          <span><span class="ic i-headset ic-14"></span>{{ f.supportAgent?.name || 'Agent removed' }}</span>
+          <span><span class="ic i-calendar ic-14"></span>{{ ui.formatDate(f.date) }}</span>
+        </div>
+        <div class="fb-foot">
+          <button type="button" class="btn btn-sec btn-sm" (click)="ticketFeedback = f"><span class="ic i-ticket ic-14"></span>View Ticket Info</button>
+          <button type="button" class="btn btn-sec btn-sm" (click)="agentFeedback = f" [disabled]="!f.supportAgent"><span class="ic i-headset ic-14"></span>View Agent Info</button>
+          <span class="grow"></span>
+          <button type="button" class="icon-btn sm danger" (click)="deleteError = ''; deleteFeedback = f" [attr.aria-label]="'Delete feedback for ticket ' + f.ticket?.ticketId" title="Delete feedback"><span class="ic i-trash"></span></button>
+        </div>
+      </article>
+    </div>
+
+    <section *ngIf="feedbacks.length === 0" class="card"><div class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-message ic-24"></span></div></div>
+      <h3 class="empty-t">No data found</h3><p class="empty-d">You can write a review once one of your tickets is resolved or closed.</p>
+      <a class="btn btn-pri" routerLink="/client/feedback/add"><span class="ic i-plus"></span>Write Feedback</a>
+    </div></section>
+    <section *ngIf="feedbacks.length > 0 && filteredFeedbacks.length === 0" class="card"><div class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-filter-x ic-24"></span></div></div>
+      <h3 class="empty-t">No results match your filters</h3><p class="empty-d">There’s no feedback in this category yet.</p>
+      <button type="button" class="btn btn-sec" (click)="categoryFilter = ''">Show all categories</button>
+    </div></section>
+  </ng-container>
+</div>
+
+<!-- Ticket info -->
+<div *ngIf="ticketFeedback && ticketFeedback.ticket as t" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="ticketFeedback = null"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-ti">
+    <div class="modal-h"><span class="m-ic pri"><span class="ic i-ticket ic-20"></span></span>
+      <div class="grow"><h2 class="modal-t" id="mt-ti">Ticket info</h2><p class="modal-s"><span class="tid">#{{ t.ticketId }}</span></p></div>
+      <button type="button" class="icon-btn sm" (click)="ticketFeedback = null" aria-label="Close"><span class="ic i-x"></span></button></div>
+    <div class="modal-b"><dl class="kv" style="margin:0">
+      <dt>Title</dt><dd>{{ t.title }}</dd><dt>Category</dt><dd>{{ t.issueCategory }}</dd>
+      <dt>Priority</dt><dd><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars"><i></i><i></i><i></i></span>{{ t.priority }}</span></dd>
+      <dt>Status</dt><dd><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span></dd>
+      <dt>Created</dt><dd>{{ ui.formatDate(t.createdDate) }}</dd><dt>Resolved</dt><dd>{{ ui.formatDate(t.resolutionDate) }}</dd>
+      <dt>Agent</dt><dd>{{ t.supportAgent ? t.supportAgent.name + ' · ' + t.supportAgent.expertise : 'Not assigned' }}</dd>
+    </dl></div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="ticketFeedback = null">Close</button><a class="btn btn-pri" [routerLink]="['/client/tickets', t.ticketId]">Open ticket</a></div>
   </div>
 </div>
 
-<div class="modal-backdrop" *ngIf="ticketInfo?.ticket as ticket" (click)="ticketInfo = null">
-  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-    <button type="button" class="modal-close" aria-label="Close" (click)="ticketInfo = null">×</button>
-    <h3 class="left">Ticket Details</h3>
-    <p class="detail-row"><strong>Title:</strong> {{ ticket.title }}</p>
-    <p class="detail-row"><strong>Description:</strong> {{ ticket.description }}</p>
-    <p class="detail-row"><strong>Priority:</strong> {{ ticket.priority }}</p>
-    <p class="detail-row"><strong>Status:</strong> {{ ticket.status }}</p>
+<!-- Agent info -->
+<div *ngIf="agentFeedback && agentFeedback.supportAgent as a" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="agentFeedback = null"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-ag">
+    <div class="modal-h"><span class="avatar av-xl" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+      <div class="grow" style="padding-top:6px"><h2 class="modal-t" id="mt-ag">{{ a.name }}</h2><p class="modal-s">{{ a.expertise }} · Agent #{{ a.agentId }}</p>
+        <span class="avail" [class.on]="a.status === 'Available'" [class.off]="a.status !== 'Available'" style="margin-top:6px">{{ a.status }}</span></div>
+      <button type="button" class="icon-btn sm" (click)="agentFeedback = null" aria-label="Close"><span class="ic i-x"></span></button></div>
+    <div class="modal-b"><dl class="kv" style="margin:4px 0 0">
+      <dt>Email</dt><dd>{{ a.email }}</dd><dt>Phone</dt><dd>{{ a.phone }}</dd><dt>Experience</dt><dd>{{ a.experience }}</dd><dt>Shift timing</dt><dd>{{ a.shiftTiming }}</dd>
+    </dl></div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="agentFeedback = null">Close</button></div>
   </div>
 </div>
 
-<div class="modal-backdrop" *ngIf="agentInfo?.supportAgent as agent" (click)="agentInfo = null">
-  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-    <button type="button" class="modal-close" aria-label="Close" (click)="agentInfo = null">×</button>
-    <h3 class="left">Agent Details</h3>
-    <p class="detail-row"><strong>Agent Name:</strong> {{ agent.name }}</p>
-    <p class="detail-row"><strong>Expertise:</strong> {{ agent.expertise }}</p>
-    <p class="detail-row"><strong>Email:</strong> {{ agent.email }}</p>
-    <p class="detail-row"><strong>Phone Number:</strong> {{ agent.phone }}</p>
+<!-- Delete -->
+<div *ngIf="deleteFeedback" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="deleteFeedback = null"></button>
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-delf">
+    <div class="modal-h"><span class="m-ic danger"><span class="ic i-trash ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-delf">Delete feedback?</h2><p class="modal-s">Are you sure you want to delete this feedback?</p></div></div>
+    <div class="modal-b">
+      <div class="mini-t"><span class="stars-ro"><span *ngFor="let s of ui.stars(deleteFeedback.rating)" class="ic i-star ic-14" [ngClass]="s"></span></span><span style="font-size:13px">“{{ deleteFeedback.feedbackText }}”</span></div>
+      <div *ngIf="deleteError" class="alert alert-err" role="alert" style="margin-top:12px"><span class="ic i-alert-circle"></span><div>{{ deleteError }}</div></div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="deleteFeedback = null">Cancel</button><button type="button" class="btn btn-danger" (click)="confirmDelete()">Yes, Delete</button></div>
   </div>
 </div>
-
-<app-confirm-dialog *ngIf="feedbackToDelete" message="Are you sure you want to delete?" confirmText="Yes, Delete"
-  (confirm)="confirmDelete()" (cancel)="feedbackToDelete = null"></app-confirm-dialog>

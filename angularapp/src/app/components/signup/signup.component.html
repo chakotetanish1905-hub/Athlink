@@ -1,75 +1,114 @@
-<div class="auth-page">
-  <div class="auth-container">
-    <div class="auth-image"><h1>SupportSphere</h1></div>
-
-    <div class="auth-form-wrapper">
-      <form class="auth-form" id="signupForm" [formGroup]="signupForm" (ngSubmit)="onSubmit()" novalidate>
-        <h2>Sign Up</h2>
-        <p class="tagline">JOIN SUPPORTSPHERE TODAY</p>
-
-        <div class="field">
-          <input id="username" name="username" class="auth-input" placeholder="User name *" formControlName="username" />
-          <div class="error-text" *ngIf="showError('username')">
-            <span *ngIf="hasError('username', 'required')">Username is required</span>
-            <span *ngIf="hasError('username', 'minlength')">Username must be at least 3 characters long</span>
-            <span *ngIf="hasError('username', 'maxlength')">Username must not exceed 50 characters</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <input id="email" name="email" type="email" class="auth-input" placeholder="Email *" formControlName="email" />
-          <div class="error-text" *ngIf="showError('email')">
-            <span *ngIf="hasError('email', 'required')">Email is required</span>
-            <span *ngIf="hasError('email', 'pattern')">Please enter a valid email address</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <input id="mobileNumber" name="mobileNumber" class="auth-input" placeholder="Mobile *" maxlength="10"
-                 formControlName="mobileNumber" />
-          <div class="error-text" *ngIf="showError('mobileNumber')">
-            <span *ngIf="hasError('mobileNumber', 'required')">Mobile number is required</span>
-            <span *ngIf="hasError('mobileNumber', 'pattern')">Mobile number must be 10 digits</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <input id="password" name="password" type="password" class="auth-input" placeholder="Password *"
-                 formControlName="password" autocomplete="new-password" />
-          <div class="error-text" *ngIf="showError('password')">
-            <span *ngIf="hasError('password', 'required')">Password is required</span>
-            <span *ngIf="hasError('password', 'minlength')">Password must be at least {{ passwordMinLength }} characters long</span>
-            <span *ngIf="hasError('password', 'maxlength')">Password must not exceed 64 characters</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <input id="confirmPassword" name="confirmPassword" type="password" class="auth-input"
-                 placeholder="Confirm password *" formControlName="confirmPassword" autocomplete="new-password" />
-          <div class="error-text" *ngIf="showError('confirmPassword')">
-            <span *ngIf="hasError('confirmPassword', 'required')">Confirm password is required</span>
-          </div>
-          <div class="error-text" *ngIf="passwordMismatch">Passwords do not match</div>
-        </div>
-
-        <div class="field">
-          <select id="userRole" name="userRole" class="auth-input" formControlName="userRole">
-            <option value="" disabled>Select Role *</option>
-            <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
-          </select>
-          <div class="error-text" *ngIf="showError('userRole')">User role is required</div>
-        </div>
-
-        <div class="form-error" id="signupError" *ngIf="errorMessage">{{ errorMessage }}</div>
-
-        <button type="submit" id="signupButton" class="btn btn-primary btn-block auth-submit" [disabled]="loading">
-          {{ loading ? 'Signing Up...' : 'Sign Up' }}
-        </button>
-        <p class="switch-link">Already have an account? <a id="loginLink" routerLink="/login">Log In</a></p>
-      </form>
+<div class="auth">
+  <!-- Left: branding visual -->
+  <section class="auth-art" aria-label="About SupportSphere">
+    <div class="grid-bg"></div>
+    <div class="ring" style="width:560px;height:560px;right:-200px;top:90px"></div>
+    <div class="ring" style="width:360px;height:360px;right:-100px;top:190px"></div>
+    <div class="brand" style="position:relative"><span class="brand-mark"></span><span class="brand-name">SupportSphere</span></div>
+    <div class="art-stage" aria-hidden="true">
+      <div class="art-card" style="left:4%;top:6%;width:330px">
+        <div class="row" style="justify-content:space-between"><span class="tid">#1003</span><span class="badge st-progress"><span class="ic i-circle-half ic-12"></span>In Progress</span></div>
+        <div style="font-weight:600;margin:8px 0 10px;font-size:14px">VPN disconnects every 10 minutes</div>
+        <div class="row" style="justify-content:space-between"><span class="person" style="font-size:12px"><span class="avatar av-xs" style="background:#E0F2FE;color:#075985">AM</span>Arjun Mehta · Networking</span><span class="pri p-medium" style="font-size:12px"><span class="pri-bars"><i></i><i></i><i></i></span>Medium</span></div>
+      </div>
+      <div class="art-bubble" style="left:30%;top:40%;max-width:300px">An agent has been assigned to your ticket and is working on it.</div>
+      <div class="art-card" style="left:12%;top:62%;width:300px">
+        <div class="row"><span class="m-ic ok" style="width:32px;height:32px"><span class="ic i-circle-check ic-18"></span></span><div><div style="font-weight:600">Ticket resolved</div><div class="muted" style="font-size:12px">Resolution summary added by client</div></div></div>
+        <div class="row" style="margin-top:10px;justify-content:space-between"><span class="stars-ro"><span class="ic i-star on ic-14"></span><span class="ic i-star on ic-14"></span><span class="ic i-star on ic-14"></span><span class="ic i-star on ic-14"></span><span class="ic i-star on ic-14"></span></span><span class="chip chip-ok">Satisfied</span></div>
+      </div>
     </div>
-  </div>
+    <div class="auth-copy">
+      <h2>Resolve faster.<br><span>Support better.</span></h2>
+      <p>One calm workspace for client tickets, support agents and feedback.</p>
+      <div class="auth-feats"><span><span class="ic i-shield ic-14"></span>Role-based access</span><span><span class="ic i-lock ic-14"></span>JWT-secured API</span><span><span class="ic i-smile ic-14"></span>Satisfaction tracking</span></div>
+    </div>
+  </section>
+
+  <!-- Right: registration form -->
+  <section class="auth-panel">
+    <div class="auth-card">
+      <div class="auth-mobile-brand brand"><span class="brand-mark"></span><span class="brand-name">SupportSphere</span></div>
+      <h1>Create your account</h1>
+      <p class="sub">Fields marked <span class="req">*</span> are required.</p>
+
+      <div *ngIf="errorMessage" class="alert alert-err" role="alert" style="margin-bottom:16px">
+        <span class="ic i-alert-circle"></span><div><b>{{ errorMessage }}</b></div>
+      </div>
+
+      <form class="auth-form" #signupForm="ngForm" (ngSubmit)="onSubmit(signupForm)" novalidate>
+        <div class="fgrid">
+          <div class="field full">
+            <label class="label" for="username">Username <span class="req" aria-hidden="true">*</span></label>
+            <input id="username" name="username" class="input" type="text" autocomplete="username" placeholder="e.g. Rahul Verma"
+                   [(ngModel)]="user.username" #username="ngModel" required minlength="3"
+                   [class.is-err]="username.invalid && (username.touched || submitted)">
+            <p class="field-err" *ngIf="username.errors?.['required'] && (username.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Username is required</p>
+            <p class="field-err" *ngIf="username.errors?.['minlength'] && (username.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Username must be at least 3 characters</p>
+          </div>
+
+          <div class="field full">
+            <label class="label" for="email">Email <span class="req" aria-hidden="true">*</span></label>
+            <input id="email" name="email" class="input" type="email" autocomplete="email" placeholder="you@company.com"
+                   [(ngModel)]="user.email" #email="ngModel" required pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
+                   [class.is-err]="email.invalid && (email.touched || submitted)">
+            <p class="field-err" *ngIf="email.errors?.['required'] && (email.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Email is required</p>
+            <p class="field-err" *ngIf="email.errors?.['pattern'] && (email.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Enter a valid email address</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="mobileNumber">Mobile number <span class="req" aria-hidden="true">*</span></label>
+            <input id="mobileNumber" name="mobileNumber" class="input" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit number"
+                   [(ngModel)]="user.mobileNumber" #mobile="ngModel" required pattern="^[6-9][0-9]{9}$"
+                   [class.is-err]="mobile.invalid && (mobile.touched || submitted)">
+            <p class="field-err" *ngIf="mobile.errors?.['required'] && (mobile.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Mobile number is required</p>
+            <p class="field-err" *ngIf="mobile.errors?.['pattern'] && (mobile.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Enter a valid 10-digit mobile number</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="userRole">Role <span class="req" aria-hidden="true">*</span></label>
+            <select id="userRole" name="userRole" class="select" [(ngModel)]="user.userRole" #role="ngModel" required
+                    [class.is-err]="role.invalid && (role.touched || submitted)">
+              <option value="">Select a role</option>
+              <option value="Manager">Manager</option>
+              <option value="Client">Client</option>
+            </select>
+            <p class="field-err" *ngIf="role.invalid && (role.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Select a role</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="password">Password <span class="req" aria-hidden="true">*</span></label>
+            <input id="password" name="password" class="input" type="password" autocomplete="new-password" placeholder="Min. 8 characters"
+                   [(ngModel)]="user.password" #password="ngModel" required pattern="^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$"
+                   [class.is-err]="password.invalid && (password.touched || submitted)">
+            <p class="field-err" *ngIf="password.errors?.['required'] && (password.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Password is required</p>
+            <p class="field-err" *ngIf="password.errors?.['pattern'] && (password.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Use 8+ characters with a letter, a number and a symbol</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="confirmPassword">Confirm password <span class="req" aria-hidden="true">*</span></label>
+            <input id="confirmPassword" name="confirmPassword" class="input" type="password" autocomplete="new-password" placeholder="Re-enter password"
+                   [(ngModel)]="confirmPassword" #confirm="ngModel" required
+                   [class.is-err]="(confirm.invalid || passwordsDiffer()) && (confirm.touched || submitted)">
+            <p class="field-err" *ngIf="confirm.invalid && (confirm.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Please confirm your password</p>
+            <p class="field-err" *ngIf="!confirm.invalid && passwordsDiffer() && (confirm.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Passwords do not match</p>
+          </div>
+        </div>
+        <p class="hint">Passwords need 8+ characters including a letter, a number and a symbol.</p>
+        <button class="btn btn-pri btn-lg btn-block" type="submit" [disabled]="loading">{{ loading ? 'Creating account…' : 'Sign Up' }}</button>
+      </form>
+
+      <p class="auth-alt">Already have an account? <a class="link-btn" routerLink="/login">Log in</a></p>
+    </div>
+  </section>
 </div>
 
-<app-message-dialog *ngIf="showSuccess" message="Registration Successful!" buttonText="Log In"
-                    (ok)="goToLogin()"></app-message-dialog>
+<!-- Registration success (SRS: modal with a "Log In" button) -->
+<div *ngIf="registered" class="overlay">
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-reg">
+    <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-reg">Account created</h2><p class="modal-s">Your SupportSphere account is ready. Log in with <b>{{ registeredEmail }}</b> to get started.</p></div>
+    </div>
+    <div class="modal-b"></div>
+    <div class="modal-f"><button type="button" class="btn btn-pri" (click)="goToLogin()">Log In</button></div>
+  </div>
+</div>

@@ -1,14 +1,11 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ISSUE_CATEGORIES, PRIORITIES, TICKET_STATUS } from '../../constants/constant';
 import { Ticket } from '../../models/ticket.model';
-import { AuthService } from '../../services/auth.service';
-import { ErrorHandlerService } from '../../services/error-handler.service';
 import { TicketService } from '../../services/ticket.service';
+import { UI } from '../ui-helpers';
 
-/** Client: "Create New Ticket" (/client/tickets/add) and "Edit Ticket" (/client/tickets/edit/:id). */
+// Create a ticket, or edit one when the URL has an id (/client/tickets/edit/:id).
 @Component({
   selector: 'app-ticket-management',
   templateUrl: './ticket-management.component.html',
@@ -16,132 +13,84 @@ import { TicketService } from '../../services/ticket.service';
 })
 export class TicketManagementComponent implements OnInit {
 
-  readonly priorities = PRIORITIES;
-  readonly issueCategories = ISSUE_CATEGORIES;
-  ticketForm: FormGroup;
+  ticket: Ticket = this.emptyTicket();
+  editId: number | null = null;
   submitted = false;
-  loading = false;
-  isEditMode = false;
-  formMessage = '';
+  saving = false;
+  errorMessage = '';
   successMessage = '';
-  private ticketId: number | null = null;
-  private existingTicket: Ticket | null = null;
 
-  constructor(
-    private readonly fb: FormBuilder,
-    private readonly ticketService: TicketService,
-    private readonly authService: AuthService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router
-  ) {
-    this.ticketForm = this.fb.group({
-      title: ['', [Validators.required, Validators.maxLength(100)]],
-      description: ['', [Validators.required, Validators.maxLength(2000)]],
-      priority: ['', Validators.required],
-      issueCategory: ['', Validators.required]
-    });
-  }
+  priorities = [
+    { value: 'High', hint: 'Work is blocked or many users affected', cls: 'p-high' },
+    { value: 'Medium', hint: 'Work is impacted, a workaround exists', cls: 'p-medium' },
+    { value: 'Low', hint: 'Question or minor inconvenience', cls: 'p-low' }
+  ];
+  categories = [
+    { value: 'Technical', hint: 'Login, errors, performance' },
+    { value: 'Billing', hint: 'Invoices, payments, refunds' },
+    { value: 'General', hint: 'Account and how-to questions' }
+  ];
+
+  constructor(private ticketService: TicketService, private route: ActivatedRoute, private router: Router) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.isEditMode = true;
-      this.ticketId = Number(id);
-      this.loadTicket(this.ticketId);
+      this.editId = Number(id);
+      this.ticketService.getTicketById(this.editId).subscribe({
+        next: (ticket) => this.ticket = ticket,
+        error: (error) => this.errorMessage = UI.errorMessage(error, 'Could not load this ticket.')
+      });
     }
   }
 
-  showError(field: string): boolean {
-    const control = this.ticketForm.get(field);
-    return !!control && control.invalid && (control.touched || this.submitted);
-  }
-
-  hasError(field: string, error: string): boolean {
-    return !!this.ticketForm.get(field)?.hasError(error);
-  }
-
-  onSubmit(): void {
+  onSubmit(form: NgForm): void {
     this.submitted = true;
-    this.formMessage = '';
-    if (this.ticketForm.invalid) {
-      this.ticketForm.markAllAsTouched();
-      this.formMessage = 'Please fill in all required fields correctly.';
+    this.errorMessage = '';
+    if (form.invalid || !this.ticket.priority || !this.ticket.issueCategory) {
       return;
     }
-    this.loading = true;
-    const ticket = this.buildTicket();
-    const request$ = this.isEditMode && this.ticketId !== null
-      ? this.ticketService.updateTicket(this.ticketId, ticket)
-      : this.ticketService.addTicket(ticket);
 
-    request$.subscribe({
-      next: () => {
-        this.loading = false;
-        this.successMessage = this.isEditMode ? 'Ticket Updated Successfully!' : 'Ticket Added Successfully!';
-      },
-      error: (err: HttpErrorResponse) => {
-        this.loading = false;
-        this.formMessage = this.errorHandler.getMessage(err);
-      }
-    });
-  }
+    this.saving = true;
+    this.ticket.title = this.ticket.title.trim();
+    this.ticket.description = this.ticket.description.trim();
 
-  onSuccessOk(): void {
-    this.successMessage = '';
-    if (this.isEditMode) {
-      this.router.navigate(['/client/tickets']);
+    if (this.editId) {
+      this.ticketService.updateTicket(this.editId, this.ticket).subscribe({
+        next: () => {
+          this.saving = false;
+          this.successMessage = 'Ticket Updated Successfully!';
+        },
+        error: (error) => this.showError(error)
+      });
     } else {
-      this.submitted = false;
-      this.ticketForm.reset({ title: '', description: '', priority: '', issueCategory: '' });
+      this.ticketService.addTicket(this.ticket).subscribe({
+        next: () => {
+          this.saving = false;
+          this.successMessage = 'Ticket Added Successfully!';
+          form.resetForm();
+          this.ticket = this.emptyTicket();
+          this.submitted = false;
+        },
+        error: (error) => this.showError(error)
+      });
     }
   }
 
-  goBack(): void {
-    this.router.navigate(['/client/tickets']);
+  // After "Ok": add -> the form is ready for a new ticket, edit -> back to the list (SRS)
+  closeSuccess(): void {
+    this.successMessage = '';
+    if (this.editId) {
+      this.router.navigate(['/client/tickets']);
+    }
   }
 
-  private loadTicket(ticketId: number): void {
-    this.ticketService.getTicketById(ticketId).subscribe({
-      next: ticket => {
-        if (ticket.status !== TICKET_STATUS.OPEN || ticket.agentId) {
-          this.formMessage = 'Only open tickets without an assigned agent can be edited.';
-          this.ticketForm.disable();
-        }
-        this.existingTicket = ticket;
-        this.ticketForm.patchValue({
-          title: ticket.title,
-          description: ticket.description,
-          priority: ticket.priority,
-          issueCategory: ticket.issueCategory
-        });
-      },
-      error: (err: HttpErrorResponse) => {
-        this.formMessage = this.errorHandler.getMessage(err);
-        this.ticketForm.disable();
-      }
-    });
+  private showError(error: any): void {
+    this.saving = false;
+    this.errorMessage = UI.errorMessage(error, 'Could not save the ticket.');
   }
 
-  private buildTicket(): Ticket {
-    const value = this.ticketForm.value;
-    const base: Ticket = this.existingTicket ?? {
-      title: '', description: '', priority: '', issueCategory: '',
-      status: TICKET_STATUS.OPEN, createdDate: new Date(), userId: this.authService.getUserId() as number
-    };
-    return {
-      ticketId: base.ticketId,
-      title: (value.title as string).trim(),
-      description: (value.description as string).trim(),
-      priority: value.priority as string,
-      issueCategory: value.issueCategory as string,
-      status: base.status,
-      createdDate: base.createdDate,
-      resolutionDate: base.resolutionDate,
-      resolutionSummary: base.resolutionSummary,
-      satisfied: base.satisfied,
-      userId: base.userId,
-      agentId: base.agentId
-    };
+  private emptyTicket(): Ticket {
+    return { title: '', description: '', priority: '', issueCategory: '' };
   }
 }

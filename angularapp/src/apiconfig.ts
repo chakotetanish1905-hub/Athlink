@@ -1,4 +1,4 @@
 import { environment } from './environments/environment';
 
-/** Backend base URL (SRS: apiconfig.ts). All endpoint paths are built in app/constants/constant.ts. */
+// Spring Boot backend URL. In a hosted workspace replace localhost with the port-8080 URL (see environments/).
 export const apiUrl: string = environment.apiBaseUrl;

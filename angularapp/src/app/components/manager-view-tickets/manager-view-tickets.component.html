@@ -1,78 +1,193 @@
 <div class="page">
-  <div class="card">
-    <h2 class="page-title">Available Tickets</h2>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Tickets</h1>
+      <p class="page-sub">Manage and track customer support requests.</p>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="status-tabs" role="tablist" aria-label="Filter by status">
+      <button *ngFor="let s of statusTabs" type="button" role="tab" class="stab" [class.on]="statusFilter === s"
+              [attr.aria-selected]="statusFilter === s" (click)="statusFilter = s">
+        {{ s || 'All' }}<span class="n">{{ countForTab(s) }}</span>
+      </button>
+    </div>
 
     <div class="toolbar">
-      <input id="searchTickets" class="wide-search" type="text" placeholder="Search by Ticket Title or Issue Category..."
-             [(ngModel)]="searchText" />
+      <div class="search"><span class="ic i-search ic-14" aria-hidden="true"></span><label class="sr-only" for="tq">Search tickets</label>
+        <input id="tq" class="input" type="search" placeholder="Search by title or category" [(ngModel)]="searchText"></div>
+      <label class="sr-only" for="f-pri">Priority</label>
+      <select id="f-pri" class="select" [(ngModel)]="priorityFilter"><option value="">All priorities</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+      <label class="sr-only" for="f-st">Status</label>
+      <select id="f-st" class="select" [(ngModel)]="statusFilter"><option value="">All statuses</option><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Resolved">Resolved</option><option value="Closed">Closed</option></select>
+      <label class="sr-only" for="f-cat">Category</label>
+      <select id="f-cat" class="select" [(ngModel)]="categoryFilter"><option value="">All categories</option><option value="Technical">Technical</option><option value="Billing">Billing</option><option value="General">General</option></select>
+      <button *ngIf="anyFilter" type="button" class="btn btn-ghost btn-sm" (click)="clearFilters()"><span class="ic i-x ic-14"></span>Clear filters</button>
+      <span class="filter-note">Showing {{ filteredTickets.length }} of {{ tickets.length }}</span>
     </div>
 
-    <div class="table-wrapper">
-      <table class="data-table" id="managerTicketsTable">
-        <thead>
-          <tr>
-            <th>S.No</th><th>Title</th><th>Description</th><th>Issue Category</th><th>Priority</th>
-            <th>Status</th><th>Agent Assigned</th><th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let ticket of filteredTickets; let i = index">
-            <td>{{ i + 1 }}</td>
-            <td>{{ ticket.title }}</td>
-            <td>{{ ticket.description }}</td>
-            <td>{{ ticket.issueCategory }}</td>
-            <td>{{ ticket.priority }}</td>
-            <td>{{ ticket.status }}</td>
-            <td>{{ ticket.supportAgent ? ticket.supportAgent.name + ' (' + ticket.supportAgent.expertise + ')' : 'Not Assigned' }}</td>
-            <td>
-              <div class="actions column">
-                <button *ngIf="isOpen(ticket) && !ticket.agentId" type="button" class="btn btn-success btn-pill"
-                        (click)="openAssign(ticket)">Assign Agent</button>
-                <span *ngIf="isOpen(ticket) && ticket.agentId" class="badge-success">Agent Assigned</span>
-                <button type="button" class="btn btn-success btn-sm" [disabled]="!canClose(ticket)"
-                        (click)="closeTicket(ticket)">Close Ticket</button>
-              </div>
-            </td>
-          </tr>
-          <tr *ngIf="!loading && filteredTickets.length === 0">
-            <td colspan="8" class="no-records">Oops! No records found</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Loading -->
+    <ng-container *ngIf="loading">
+      <div class="sk-row" *ngFor="let x of [1,2,3,4,5,6]"><div class="sk sk-l" style="width:60px"></div><div class="sk sk-l" style="flex:1 1 auto"></div><div class="sk" style="width:90px;height:22px;border-radius:999px"></div><div class="sk sk-l" style="width:120px"></div><div class="sk sk-l" style="width:80px"></div></div>
+    </ng-container>
+
+    <!-- Error -->
+    <div *ngIf="errorMessage" class="err-page" role="alert">
+      <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+      <h1 class="err-t">Unable to load tickets</h1><p class="err-d">{{ errorMessage }}</p>
+      <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadTickets()"><span class="ic i-refresh"></span>Retry</button></div>
     </div>
+
+    <ng-container *ngIf="!loading && !errorMessage && filteredTickets.length > 0">
+      <div class="tbl-wrap has-cards">
+        <div class="tbl w-t" role="table" aria-label="All tickets">
+          <div class="thead" role="rowgroup"><div class="tr cols-t" role="row">
+            <div class="th" role="columnheader">ID</div><div class="th" role="columnheader">Title</div><div class="th" role="columnheader">Category</div>
+            <div class="th" role="columnheader">Priority</div><div class="th" role="columnheader">Status</div><div class="th" role="columnheader">Client</div>
+            <div class="th" role="columnheader">Assigned agent</div><div class="th" role="columnheader">Created</div><div class="th r" role="columnheader">Actions</div>
+          </div></div>
+          <div class="tbody" role="rowgroup">
+            <div class="tr cols-t" role="row" *ngFor="let t of filteredTickets">
+              <div class="td tid" role="cell">#{{ t.ticketId }}</div>
+              <div class="td" role="cell"><a class="t-title" [routerLink]="['/manager/tickets', t.ticketId]" [title]="t.title">{{ t.title }}</a></div>
+              <div class="td" role="cell"><span class="chip">{{ t.issueCategory }}</span></div>
+              <div class="td" role="cell"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ t.priority }}</span></div>
+              <div class="td" role="cell"><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)" aria-hidden="true"></span>{{ t.status }}</span></div>
+              <div class="td" role="cell"><span class="person"><span class="avatar av-xs" [style.background]="ui.avatar(t.user?.username).bg" [style.color]="ui.avatar(t.user?.username).fg">{{ ui.avatar(t.user?.username).ini }}</span><span class="trunc">{{ t.user?.username }}</span></span></div>
+              <div class="td" role="cell">
+                <span *ngIf="t.supportAgent" class="person"><span class="avatar av-xs" [style.background]="ui.avatar(t.supportAgent.name).bg" [style.color]="ui.avatar(t.supportAgent.name).fg">{{ ui.avatar(t.supportAgent.name).ini }}</span><span class="trunc">{{ t.supportAgent.name }}</span></span>
+                <span *ngIf="!t.supportAgent" class="unassigned">Unassigned</span>
+              </div>
+              <div class="td muted nowrap" role="cell">{{ ui.shortDate(t.createdDate) }}</div>
+              <div class="td" role="cell"><div class="act-cell">
+                <button *ngIf="canAssign(t)" type="button" class="btn btn-sec btn-sm" (click)="openAssign(t)"><span class="ic i-user ic-14"></span>Assign Agent</button>
+                <span *ngIf="isAssigned(t)" class="chip chip-ok"><span class="ic i-check ic-12"></span>Agent Assigned</span>
+                <button *ngIf="canClose(t)" type="button" class="btn btn-sec btn-sm" (click)="closeTicket(t)"><span class="ic i-lock ic-14"></span>Close Ticket</button>
+                <button type="button" class="icon-btn sm" (click)="openMenu($event, t)" [attr.aria-label]="'More actions for ticket ' + t.ticketId" aria-haspopup="menu"><span class="ic i-more"></span></button>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="m-cards">
+        <a class="t-card" *ngFor="let t of filteredTickets" [routerLink]="['/manager/tickets', t.ticketId]">
+          <span class="top"><span class="tid">#{{ t.ticketId }}</span><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span></span>
+          <span class="ttl">{{ t.title }}</span>
+          <span class="meta"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars"><i></i><i></i><i></i></span>{{ t.priority }}</span><span>{{ t.issueCategory }}</span><span>{{ t.user?.username }}</span><span>{{ ui.shortDate(t.createdDate) }}</span></span>
+        </a>
+      </div>
+    </ng-container>
+
+    <div *ngIf="!loading && !errorMessage && tickets.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-ticket ic-24"></span></div></div>
+      <h3 class="empty-t">Oops! No records found</h3>
+      <p class="empty-d">When clients raise tickets, they’ll appear here for triage and assignment.</p>
+    </div>
+    <div *ngIf="!loading && !errorMessage && tickets.length > 0 && filteredTickets.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-filter-x ic-24"></span></div></div>
+      <h3 class="empty-t">No results match your filters</h3>
+      <p class="empty-d">Try a different search term, or clear the filters to see every ticket.</p>
+      <button type="button" class="btn btn-sec" (click)="clearFilters()">Clear filters</button>
+    </div>
+  </section>
+</div>
+
+<!-- Row action menu -->
+<ng-container *ngIf="menuTicket">
+  <button class="menu-catch" type="button" tabindex="-1" aria-label="Close menu" (click)="menuTicket = null"></button>
+  <div class="float-menu" role="menu" aria-label="Ticket actions" [style.left.px]="menuX" [style.top.px]="menuY">
+    <div class="muted" style="font-size:11.5px;padding:6px 10px 4px">#{{ menuTicket.ticketId }} · {{ menuTicket.status }}</div>
+    <a class="menu-item" role="menuitem" [routerLink]="['/manager/tickets', menuTicket.ticketId]" style="text-decoration:none"><span class="ic i-eye"></span>View details</a>
+    <button *ngIf="canAssign(menuTicket)" type="button" role="menuitem" class="menu-item" (click)="openAssign(menuTicket)"><span class="ic i-user"></span>Assign agent</button>
+    <button *ngIf="canClose(menuTicket)" type="button" role="menuitem" class="menu-item" (click)="closeTicket(menuTicket)"><span class="ic i-lock"></span>Close ticket</button>
+    <button *ngIf="menuTicket.resolutionSummary" type="button" role="menuitem" class="menu-item" (click)="summaryTicket = menuTicket; menuTicket = null"><span class="ic i-file"></span>View summary</button>
+    <button type="button" role="menuitem" class="menu-item" (click)="profileTicket = menuTicket; menuTicket = null"><span class="ic i-user"></span>View client profile</button>
+  </div>
+</ng-container>
+
+<!-- Assign agent dialog -->
+<div *ngIf="assignTicket" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="assignTicket = null"></button>
+  <div class="modal lg" role="dialog" aria-modal="true" aria-labelledby="mt-as">
+    <div class="modal-h"><span class="m-ic pri"><span class="ic i-user ic-20"></span></span>
+      <div class="grow"><h2 class="modal-t" id="mt-as">Assign agent</h2><p class="modal-s"><span class="tid">#{{ assignTicket.ticketId }}</span> · {{ assignTicket.title }} · {{ assignTicket.issueCategory }}</p></div>
+      <button type="button" class="icon-btn sm" (click)="assignTicket = null" aria-label="Close"><span class="ic i-x"></span></button>
+    </div>
+    <div class="modal-b">
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" class="tab" [class.on]="assignTab === 'suggested'" (click)="assignTab = 'suggested'"><span class="ic i-sparkles ic-14"></span>Suggested<span class="n">{{ countAvailable(true) }}</span></button>
+          <button type="button" role="tab" class="tab" [class.on]="assignTab === 'manual'" (click)="assignTab = 'manual'">Manual Select<span class="n">{{ countAvailable(false) }}</span></button>
+        </div>
+        <div class="search" style="max-width:240px;flex:1 1 200px"><span class="ic i-search ic-14"></span><label class="sr-only" for="as-q">Search agents by name or expertise</label>
+          <input id="as-q" class="input" type="search" placeholder="Name or expertise" [(ngModel)]="assignSearch"></div>
+      </div>
+      <p class="hint" style="margin-top:10px">{{ assignTab === 'suggested' ? 'Available agents whose expertise matches the ' + assignTicket.issueCategory + ' category.' : 'Every available agent. Pick one to assign.' }}</p>
+
+      <div *ngIf="actionError" class="alert alert-err" role="alert" style="margin-top:12px"><span class="ic i-alert-circle"></span><div>{{ actionError }}</div></div>
+
+      <div *ngIf="assignList.length > 0" class="pick-list">
+        <button *ngFor="let a of assignList" type="button" class="pick" (click)="assign(a)">
+          <span class="avatar av-sm" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+          <span class="grow"><span class="nm" style="display:block">{{ a.name }}</span><span class="ex">{{ a.expertise }} · {{ a.experience }} · {{ a.shiftTiming }}</span></span>
+          <span *ngIf="isMatch(a, assignTicket)" class="match">Matches {{ assignTicket.issueCategory }}</span>
+          <span class="avail on">Available</span>
+        </button>
+      </div>
+      <div *ngIf="assignList.length === 0" class="res-empty" style="margin-top:12px"><span class="ic i-users ic-18"></span>
+        <div>
+          <b style="color:var(--tx);display:block">{{ assignTab === 'suggested' ? 'No suggested agents available for this issue.' : 'No available agents found' }}</b>
+          {{ assignTab === 'suggested' ? 'No available agent has matching expertise.' : 'Make an agent available on the Support Agents page.' }}
+          <button *ngIf="assignTab === 'suggested'" type="button" class="link-btn" (click)="assignTab = 'manual'">Choose manually</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="assignTicket = null">Cancel</button></div>
   </div>
 </div>
 
-<div class="modal-backdrop" *ngIf="assignTicket" (click)="closeAssign()">
-  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-    <button type="button" class="modal-close" aria-label="Close" (click)="closeAssign()">×</button>
-    <h3 class="assign-title">Assign Agent</h3>
-    <p>Select an agent to assign to <strong>{{ assignTicket.title }}</strong>:</p>
+<!-- View summary dialog -->
+<div *ngIf="summaryTicket" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="summaryTicket = null"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-vs">
+    <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+      <div class="grow"><h2 class="modal-t" id="mt-vs">Resolution summary</h2><p class="modal-s"><span class="tid">#{{ summaryTicket.ticketId }}</span> · {{ summaryTicket.title }}</p></div>
+      <button type="button" class="icon-btn sm" (click)="summaryTicket = null" aria-label="Close"><span class="ic i-x"></span></button>
+    </div>
+    <div class="modal-b">
+      <div class="res-box"><p class="desc" style="font-size:14px">{{ summaryTicket.resolutionSummary }}</p></div>
+      <dl class="kv" style="margin:16px 0 0">
+        <dt>Satisfaction</dt><dd><span class="sat" [ngClass]="ui.satisfaction(summaryTicket).cls"><span class="ic ic-14" [ngClass]="ui.satisfaction(summaryTicket).icon"></span>{{ ui.satisfaction(summaryTicket).label }}</span></dd>
+        <dt>Resolved on</dt><dd>{{ ui.formatDate(summaryTicket.resolutionDate) }}</dd>
+        <dt>Agent</dt><dd>{{ summaryTicket.supportAgent ? summaryTicket.supportAgent.name + ' · ' + summaryTicket.supportAgent.expertise : 'Not assigned' }}</dd>
+      </dl>
+    </div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="summaryTicket = null">Close</button></div>
+  </div>
+</div>
 
-    <h4 class="section-label">SUGGESTED AGENTS</h4>
-    <p *ngIf="suggestedAgents.length === 0" id="noSuggestedAgents">No suggested agents available for this issue.</p>
-    <ul class="agent-list">
-      <li *ngFor="let agent of suggestedAgents" (click)="assign(agent)" (keyup.enter)="assign(agent)" tabindex="0">
-        {{ agent.name }} ({{ agent.expertise }})
-      </li>
-    </ul>
+<!-- Client profile dialog -->
+<div *ngIf="profileTicket" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="profileTicket = null"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-us">
+    <div class="modal-h"><span class="avatar av-xl" [style.background]="ui.avatar(profileTicket.user?.username).bg" [style.color]="ui.avatar(profileTicket.user?.username).fg">{{ ui.avatar(profileTicket.user?.username).ini }}</span>
+      <div class="grow" style="padding-top:6px"><h2 class="modal-t" id="mt-us">{{ profileTicket.user?.username }}</h2><p class="modal-s">{{ profileTicket.user?.email }}</p><span class="chip chip-pri" style="margin-top:6px">{{ profileTicket.user?.userRole }}</span></div>
+      <button type="button" class="icon-btn sm" (click)="profileTicket = null" aria-label="Close"><span class="ic i-x"></span></button>
+    </div>
+    <div class="modal-b"><dl class="kv" style="margin:4px 0 0">
+      <dt>User ID</dt><dd class="mono">{{ profileTicket.user?.userId }}</dd><dt>Username</dt><dd>{{ profileTicket.user?.username }}</dd>
+      <dt>Email</dt><dd>{{ profileTicket.user?.email }}</dd><dt>Mobile number</dt><dd>{{ profileTicket.user?.mobileNumber }}</dd>
+      <dt>Role</dt><dd>{{ profileTicket.user?.userRole }}</dd><dt>Tickets raised</dt><dd>{{ ticketsRaisedBy(profileTicket.user?.userId) }}</dd>
+    </dl></div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="profileTicket = null">Close</button></div>
+  </div>
+</div>
 
-    <p class="center">
-      <button type="button" class="btn-link" id="manualSelectToggle" (click)="showManualSelect = !showManualSelect">
-        {{ showManualSelect ? 'Hide Manual Select' : 'Manual Select' }}
-      </button>
-    </p>
-
-    <ng-container *ngIf="showManualSelect">
-      <h4 class="section-label">MANUAL SELECT</h4>
-      <input id="manualSearch" class="form-control" type="text" placeholder="Search by Name or Expertise..."
-             [(ngModel)]="manualSearch" />
-      <ul class="agent-list scroll">
-        <li *ngFor="let agent of manualAgents" (click)="assign(agent)" (keyup.enter)="assign(agent)" tabindex="0">
-          {{ agent.name }} ({{ agent.expertise }})
-        </li>
-        <li *ngIf="manualAgents.length === 0" class="empty">No available agents found.</li>
-      </ul>
-    </ng-container>
+<!-- Toast -->
+<div class="toasts" role="status" aria-live="polite">
+  <div *ngIf="toastTitle" class="toast" [ngClass]="toastKind"><span class="t-ic"><span class="ic ic-14" [ngClass]="toastKind === 'err' ? 'i-alert-circle' : 'i-check'"></span></span>
+    <div class="grow"><div class="tt">{{ toastTitle }}</div><div class="ts">{{ toastText }}</div></div>
+    <button type="button" class="icon-btn sm" style="margin:-4px -4px 0 0;width:26px;height:26px" (click)="toastTitle = ''" aria-label="Dismiss notification"><span class="ic i-x ic-14"></span></button>
   </div>
 </div>

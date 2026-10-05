@@ -1,26 +1,23 @@
 import { Injectable } from '@angular/core';
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
+import { ActivatedRouteSnapshot, CanActivate, Router, UrlTree } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
-/**
- * Route protection (SRS: Auth Guard with canActivate).
- * - Not logged in / expired token  -> /login
- * - Route requires another role (route data: { role: 'Manager' | 'Client' }) -> /error/403
- * This is navigation convenience only; the backend enforces JWT and roles on every request.
- */
+// Blocks pages for users who are not logged in (redirect to /login)
+// and pages meant for the other role (route data: { role: 'Manager' | 'Client' }).
+// This only controls navigation - the backend still checks every API call.
 @Injectable({ providedIn: 'root' })
 export class AuthGuard implements CanActivate {
 
-  constructor(private readonly authService: AuthService, private readonly router: Router) {}
+  constructor(private authService: AuthService, private router: Router) {}
 
-  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean | UrlTree {
+  canActivate(route: ActivatedRouteSnapshot): boolean | UrlTree {
     if (!this.authService.isLoggedIn()) {
-      this.authService.logout();
-      return this.router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
+      return this.router.createUrlTree(['/login']);
     }
-    const requiredRole = route.data['role'] as string | undefined;
-    if (requiredRole && this.authService.getUserRole() !== requiredRole) {
-      return this.router.createUrlTree(['/error', 403]);
+
+    const requiredRole = route.data['role'];
+    if (requiredRole && requiredRole !== this.authService.getUserRole()) {
+      return this.router.createUrlTree(['/error'], { queryParams: { code: 404 } });
     }
     return true;
   }

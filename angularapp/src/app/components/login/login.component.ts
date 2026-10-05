@@ -1,78 +1,59 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { PASSWORD_MIN_LENGTH, VALIDATION_PATTERNS } from '../../constants/constant';
+import { Component } from '@angular/core';
+import { NgForm } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Login } from '../../models/login.model';
 import { AuthService } from '../../services/auth.service';
-import { ErrorHandlerService } from '../../services/error-handler.service';
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
 
-  readonly passwordMinLength = PASSWORD_MIN_LENGTH;
-  loginForm: FormGroup;
+  login: Login = { email: '', password: '' };
+  showPassword = false;
   submitted = false;
   loading = false;
-  showPassword = false;
   errorMessage = '';
 
-  constructor(
-    private readonly fb: FormBuilder,
-    private readonly authService: AuthService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly router: Router,
-    private readonly route: ActivatedRoute
-  ) {
-    this.loginForm = this.fb.group({
-      email: ['', [Validators.required, Validators.pattern(VALIDATION_PATTERNS.EMAIL)]],
-      password: ['', [Validators.required, Validators.minLength(PASSWORD_MIN_LENGTH)]]
-    });
-  }
-
-  ngOnInit(): void {
+  constructor(private authService: AuthService, private router: Router) {
+    // Already logged in: go straight to the app
     if (this.authService.isLoggedIn()) {
-      this.router.navigate(['/home']);
+      this.goToStartPage();
     }
   }
 
-  showError(field: string): boolean {
-    const control = this.loginForm.get(field);
-    return !!control && control.invalid && (control.touched || this.submitted);
-  }
-
-  hasError(field: string, error: string): boolean {
-    return !!this.loginForm.get(field)?.hasError(error);
-  }
-
-  onSubmit(): void {
+  onSubmit(form: NgForm): void {
     this.submitted = true;
     this.errorMessage = '';
-    if (this.loginForm.invalid) {
-      this.loginForm.markAllAsTouched();
+    if (form.invalid) {
       return;
     }
+
     this.loading = true;
-    const credentials: Login = {
-      email: (this.loginForm.value.email as string).trim(),
-      password: this.loginForm.value.password as string
-    };
-    this.authService.login(credentials).subscribe({
+    this.authService.login({ email: this.login.email.trim(), password: this.login.password }).subscribe({
       next: () => {
         this.loading = false;
-        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-        this.router.navigateByUrl(returnUrl && returnUrl.startsWith('/') ? returnUrl : '/home');
+        this.goToStartPage();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (error) => {
         this.loading = false;
-        this.errorMessage = err.status === 401
-          ? 'Invalid email address or password'
-          : this.errorHandler.getMessage(err);
+        if (error.status === 0) {
+          this.errorMessage = 'Unable to connect to SupportSphere. Please try again.';
+        } else {
+          this.errorMessage = 'Invalid Email or Password';
+        }
       }
     });
+  }
+
+  // Manager starts on the dashboard, Client on the home page
+  private goToStartPage(): void {
+    if (this.authService.isManager()) {
+      this.router.navigate(['/manager/dashboard']);
+    } else {
+      this.router.navigate(['/home']);
+    }
   }
 }

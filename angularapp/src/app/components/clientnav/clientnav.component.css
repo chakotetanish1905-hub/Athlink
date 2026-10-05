@@ -1,22 +1,2 @@
-.navbar {
-  position: sticky; top: 0; z-index: 900;
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-  padding: 10px 24px;
-  background: linear-gradient(90deg, #e0533f 0%, #c98a6b 35%, #b39b78 55%, #6e3d2a 80%, #3b1d14 100%);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.brand { font-size: 20px; font-weight: 700; color: #fff; text-decoration: none; letter-spacing: 0.3px; }
-.user-badge { border: 1.5px solid #fff; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
-.nav-links { display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
-.nav-links > li { position: relative; }
-.nav-links a { display: block; color: #fff; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 13px; }
-.nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.18); }
-.dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.18); list-style: none; padding: 6px 0; margin: 0; z-index: 950; }
-.has-dropdown:hover .dropdown, .has-dropdown:focus-within .dropdown { display: block; }
-.dropdown a { color: #333; padding: 8px 14px; border-radius: 0; }
-.dropdown a:hover { background: #f1f4f8; }
-.logout-btn { background: #e0533f; color: #fff; border: none; border-radius: 6px; padding: 7px 16px; font-weight: 600; cursor: pointer; margin-left: 8px; }
-.logout-btn:hover { background: #c94030; }
-@media (max-width: 760px) { .navbar { justify-content: center; } }
+/* The sidebar and bottom bar are direct children of the .app flex layout */
+:host { display: contents; }

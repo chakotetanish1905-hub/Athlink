@@ -2,94 +2,73 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { apiUrl } from '../../apiconfig';
-import { API_ENDPOINTS, STORAGE_KEYS } from '../constants/constant';
-import { Login, LoginResponse } from '../models/login.model';
+import { Login, LoginDTO } from '../models/login.model';
 import { User } from '../models/user.model';
-import { TokenService } from './token.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
 
-  public apiUrl: string = apiUrl;
+  public apiUrl = apiUrl;
 
-  private readonly loggedInSubject = new BehaviorSubject<boolean>(false);
-  private readonly userRoleSubject = new BehaviorSubject<string | null>(null);
-  private readonly userIdSubject = new BehaviorSubject<number | null>(null);
-  private readonly usernameSubject = new BehaviorSubject<string | null>(null);
+  // Other components can subscribe to these to react to login / logout
+  public userRole = new BehaviorSubject<string | null>(localStorage.getItem('userRole'));
+  public userId = new BehaviorSubject<number | null>(this.readUserId());
 
-  readonly loggedIn$ = this.loggedInSubject.asObservable();
-  readonly userRole$ = this.userRoleSubject.asObservable();
-  readonly userId$ = this.userIdSubject.asObservable();
-  readonly username$ = this.usernameSubject.asObservable();
-
-  constructor(private readonly http: HttpClient, private readonly tokenService: TokenService) {
-    this.restoreSession();
-  }
+  constructor(private http: HttpClient) {}
 
   register(user: User): Observable<any> {
-    return this.http.post<User>(API_ENDPOINTS.AUTH.REGISTER, user);
+    return this.http.post(`${this.apiUrl}/api/register`, user);
   }
 
-  /** POST /api/login; on success stores the JWT and publishes the user's role/id via BehaviorSubjects. */
+  // On success the JWT and the user details are kept in localStorage
   login(login: Login): Observable<any> {
-    return this.http.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, login).pipe(
+    return this.http.post<LoginDTO>(`${this.apiUrl}/api/login`, login).pipe(
       tap(response => {
-        this.tokenService.saveToken(response.token);
-        localStorage.setItem(STORAGE_KEYS.USER_ROLE, response.userRole);
-        localStorage.setItem(STORAGE_KEYS.USER_ID, String(response.userId));
-        localStorage.setItem(STORAGE_KEYS.USERNAME, response.username);
-        this.publish(true, response.userRole, response.userId, response.username);
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userRole', response.userRole);
+        localStorage.setItem('userId', String(response.userId));
+        localStorage.setItem('username', response.username);
+        this.userRole.next(response.userRole);
+        this.userId.next(response.userId);
       })
     );
   }
 
   logout(): void {
-    this.tokenService.clear();
-    this.publish(false, null, null, null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('username');
+    this.userRole.next(null);
+    this.userId.next(null);
   }
 
   isLoggedIn(): boolean {
-    return this.tokenService.hasValidToken();
+    return localStorage.getItem('token') !== null;
   }
 
   getToken(): string | null {
-    return this.tokenService.getToken();
+    return localStorage.getItem('token');
   }
 
-  /** Role comes from the signed token claims, not from editable storage. */
   getUserRole(): string | null {
-    return this.isLoggedIn() ? this.tokenService.decode()?.role ?? null : null;
+    return localStorage.getItem('userRole');
   }
 
-  getUserId(): number | null {
-    return this.isLoggedIn() ? this.tokenService.decode()?.userId ?? null : null;
+  getUserId(): number {
+    return Number(localStorage.getItem('userId'));
   }
 
-  getUsername(): string | null {
-    return this.isLoggedIn() ? this.tokenService.decode()?.username ?? null : null;
+  getUsername(): string {
+    return localStorage.getItem('username') || '';
   }
 
   isManager(): boolean {
     return this.getUserRole() === 'Manager';
   }
 
-  isClient(): boolean {
-    return this.getUserRole() === 'Client';
-  }
-
-  private restoreSession(): void {
-    if (this.tokenService.hasValidToken()) {
-      const payload = this.tokenService.decode();
-      this.publish(true, payload?.role ?? null, payload?.userId ?? null, payload?.username ?? null);
-    } else {
-      this.tokenService.clear();
-    }
-  }
-
-  private publish(loggedIn: boolean, role: string | null, userId: number | null, username: string | null): void {
-    this.loggedInSubject.next(loggedIn);
-    this.userRoleSubject.next(role);
-    this.userIdSubject.next(userId);
-    this.usernameSubject.next(username);
+  private readUserId(): number | null {
+    const id = localStorage.getItem('userId');
+    return id ? Number(id) : null;
   }
 }

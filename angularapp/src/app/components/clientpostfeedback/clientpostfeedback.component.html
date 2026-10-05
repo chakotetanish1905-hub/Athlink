@@ -1,49 +1,96 @@
 <div class="page">
-  <h2 class="page-title">Add Feedback</h2>
+  <a class="back" routerLink="/client/feedbacks"><span class="ic i-arrow-left ic-14"></span>Back to My Feedback</a>
+  <div class="page-head"><div>
+    <h1 class="page-title">Add Feedback</h1>
+    <p class="page-sub">Tell us how your support experience went. It helps the team improve.</p>
+  </div></div>
 
-  <div class="form-card">
-    <p class="ticket-ref" *ngIf="ticket">Ticket: <strong>{{ ticket.title }}</strong> ({{ ticket.status }})</p>
+  <form #feedbackForm="ngForm" (ngSubmit)="onSubmit(feedbackForm)" novalidate>
+    <div class="form-layout">
+      <section class="card">
+        <div class="form-sec">
+          <fieldset class="field" style="border:0;padding:0;margin:0 0 22px">
+            <legend class="label" style="margin-bottom:8px">Ticket <span class="req" aria-hidden="true">*</span></legend>
+            <div *ngIf="loading" class="sk" style="height:64px"></div>
+            <div *ngIf="!loading && eligibleTickets.length > 0" class="opt-list">
+              <label *ngFor="let t of eligibleTickets" class="opt" [class.sel]="selectedTicketId === t.ticketId" [class.err-ring]="submitted && !selectedTicketId">
+                <input class="sr-only" type="radio" name="ticket" [value]="t.ticketId" [(ngModel)]="selectedTicketId">
+                <span class="radio-dot"></span>
+                <span class="grow">
+                  <span class="row" style="justify-content:space-between"><span class="ot">{{ t.title }}</span>
+                    <span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span></span>
+                  <span class="od" style="display:block"><span class="tid">#{{ t.ticketId }}</span> · {{ t.supportAgent?.name }} · {{ t.issueCategory }}</span>
+                </span>
+              </label>
+            </div>
+            <div *ngIf="!loading && eligibleTickets.length === 0" class="alert alert-info"><span class="ic i-info"></span>
+              <div>Feedback opens once a ticket is <b>Resolved</b> or <b>Closed</b>, and you haven’t reviewed it yet.</div></div>
+            <p class="field-err" *ngIf="submitted && !selectedTicketId"><span class="ic i-alert-circle ic-14"></span>Select the ticket you’re reviewing</p>
+          </fieldset>
 
-    <form id="feedbackForm" [formGroup]="feedbackForm" (ngSubmit)="onSubmit()" novalidate>
-      <div class="form-group">
-        <label for="feedbackText">Feedback<span class="required">*</span></label>
-        <textarea id="feedbackText" name="feedbackText" class="form-control" placeholder="Write your feedback here..."
-                  formControlName="feedbackText" [class.is-invalid]="showError('feedbackText')"></textarea>
-        <div class="error-text" *ngIf="showError('feedbackText')">
-          <span *ngIf="hasError('feedbackText', 'required')">*Feedback is required</span>
-          <span *ngIf="hasError('feedbackText', 'maxlength')">*Feedback must not exceed 2000 characters</span>
+          <div class="fgrid">
+            <div class="field">
+              <label class="label" for="category">Category <span class="req" aria-hidden="true">*</span></label>
+              <select id="category" name="category" class="select" [(ngModel)]="category" #cat="ngModel" required [class.is-err]="cat.invalid && (cat.touched || submitted)">
+                <option value="">Select a category</option>
+                <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+              </select>
+              <p class="field-err" *ngIf="cat.invalid && (cat.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Select a category</p>
+            </div>
+            <div class="field">
+              <span class="label">Agent</span>
+              <div class="input" style="display:flex;align-items:center;gap:8px;background:var(--bg);color:var(--tx2)"><span class="ic i-headset ic-14"></span>
+                {{ selectedTicket ? selectedTicket.supportAgent?.name + ' · ' + selectedTicket.supportAgent?.expertise : 'Select a ticket first' }}</div>
+            </div>
+            <fieldset class="field full" style="border:0;padding:0;margin:0">
+              <legend class="label" style="margin-bottom:6px">Rating <span class="req" aria-hidden="true">*</span></legend>
+              <div class="row">
+                <div class="stars" (mouseleave)="hoverRating = 0">
+                  <label *ngFor="let n of [1,2,3,4,5]" class="star" [class.on]="n <= shownRating" (mouseenter)="hoverRating = n" [title]="n + ' — ' + ratingLabels[n]">
+                    <input class="sr-only" type="radio" name="rating" [value]="n" [(ngModel)]="rating" [attr.aria-label]="n + (n === 1 ? ' star' : ' stars')">
+                    <span class="ic i-star ic-28"></span>
+                  </label>
+                </div>
+                <span class="rating-lbl">{{ shownRating ? shownRating + ' / 5 · ' + ratingLabels[shownRating] : 'Select a rating' }}</span>
+              </div>
+              <p class="field-err" *ngIf="submitted && rating < 1"><span class="ic i-alert-circle ic-14"></span>Choose a rating from 1 to 5</p>
+            </fieldset>
+            <div class="field full">
+              <div class="row"><label class="label" for="feedbackText">Feedback <span class="req" aria-hidden="true">*</span></label><span class="counter">{{ (feedbackText || '').length }} / 1000</span></div>
+              <textarea id="feedbackText" name="feedbackText" class="textarea" maxlength="1000" placeholder="What went well? What could be better?"
+                        [(ngModel)]="feedbackText" #text="ngModel" required minlength="10" [class.is-err]="text.invalid && (text.touched || submitted)"></textarea>
+              <p class="field-err" *ngIf="text.errors?.['required'] && (text.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Feedback is required</p>
+              <p class="field-err" *ngIf="text.errors?.['minlength'] && (text.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Write at least 10 characters</p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label for="category">Category<span class="required">*</span></label>
-        <select id="category" name="category" class="form-control" formControlName="category"
-                [class.is-invalid]="showError('category')">
-          <option value="" disabled>Choose Category</option>
-          <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
-        </select>
-        <div class="error-text" *ngIf="showError('category')">*Category is required</div>
-      </div>
-
-      <div class="form-group">
-        <label for="rating">Rating<span class="required">*</span></label>
-        <select id="rating" name="rating" class="form-control" formControlName="rating"
-                [class.is-invalid]="showError('rating')">
-          <option value="" disabled>Choose Rating</option>
-          <option *ngFor="let r of ratings" [value]="r">{{ r }}</option>
-        </select>
-        <div class="error-text" *ngIf="showError('rating')">
-          <span *ngIf="hasError('rating', 'required')">*Rating is required</span>
-          <span *ngIf="hasError('rating', 'min') || hasError('rating', 'max')">*Rating must be between 1 and 5.</span>
+        <div class="form-foot" style="flex-wrap:wrap">
+          <div *ngIf="submitted && (feedbackForm.invalid || !selectedTicketId || rating < 1)" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px">
+            <span class="ic i-alert-circle"></span><div>Please fill in all required fields correctly.</div></div>
+          <div *ngIf="errorMessage" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px"><span class="ic i-alert-circle"></span><div>{{ errorMessage }}</div></div>
+          <a class="btn btn-sec" routerLink="/client/feedbacks">Cancel</a>
+          <button type="submit" class="btn btn-pri" [disabled]="saving">Submit</button>
         </div>
-      </div>
+      </section>
 
-      <div class="form-error" id="feedbackError" *ngIf="errorMessage">{{ errorMessage }}</div>
-
-      <button type="submit" id="submitFeedbackButton" class="btn btn-primary" [disabled]="loading || !ticket">Submit</button>
-    </form>
-  </div>
+      <aside class="card">
+        <div class="card-h"><h2 class="card-t">Good feedback is…</h2></div>
+        <div class="card-b"><ol class="side-steps">
+          <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">1</span><span><b>Specific</b><span class="d">Mention what the agent did — or didn’t do.</span></span></li>
+          <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">2</span><span><b>Fair</b><span class="d">Rate the support experience, not the original problem.</span></span></li>
+          <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">3</span><span><b>Visible to managers</b><span class="d">Managers see your rating, comment and ticket reference.</span></span></li>
+        </ol></div>
+      </aside>
+    </div>
+  </form>
 </div>
 
-<app-message-dialog *ngIf="showSuccess" message="Feedback Submitted Successfully!" buttonText="OK" [success]="true"
-                    (ok)="onSuccessOk()"></app-message-dialog>
+<!-- Success popup (SRS) -->
+<div *ngIf="showSuccess" class="overlay">
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-ok">
+    <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-ok">Successfully Added!</h2><p class="modal-s">Thanks — your review is visible to the support manager.</p></div></div>
+    <div class="modal-b"></div>
+    <div class="modal-f"><button type="button" class="btn btn-pri" (click)="showSuccess = false">Ok</button></div>
+  </div>
+</div>

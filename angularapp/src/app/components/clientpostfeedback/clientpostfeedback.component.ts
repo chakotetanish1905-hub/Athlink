@@ -1,16 +1,13 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { FEEDBACK_CATEGORIES, RATINGS } from '../../constants/constant';
+import { NgForm } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Feedback } from '../../models/feedback.model';
 import { Ticket } from '../../models/ticket.model';
 import { AuthService } from '../../services/auth.service';
-import { ErrorHandlerService } from '../../services/error-handler.service';
 import { FeedbackService } from '../../services/feedback.service';
 import { TicketService } from '../../services/ticket.service';
+import { UI } from '../ui-helpers';
 
-/** Client: "Add Feedback" for a Resolved/Closed ticket (/client/feedback/add/:ticketId). */
 @Component({
   selector: 'app-clientpostfeedback',
   templateUrl: './clientpostfeedback.component.html',
@@ -18,87 +15,98 @@ import { TicketService } from '../../services/ticket.service';
 })
 export class ClientpostfeedbackComponent implements OnInit {
 
-  readonly categories = FEEDBACK_CATEGORIES;
-  readonly ratings = RATINGS;
-  feedbackForm: FormGroup;
-  submitted = false;
-  loading = false;
-  showSuccess = false;
-  errorMessage = '';
-  ticket: Ticket | null = null;
+  ui = UI;
+  eligibleTickets: Ticket[] = [];
+  loading = true;
 
-  constructor(
-    private readonly fb: FormBuilder,
-    private readonly feedbackService: FeedbackService,
-    private readonly ticketService: TicketService,
-    private readonly authService: AuthService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router
-  ) {
-    this.feedbackForm = this.fb.group({
-      feedbackText: ['', [Validators.required, Validators.maxLength(2000)]],
-      category: ['', Validators.required],
-      rating: ['', [Validators.required, Validators.min(1), Validators.max(5)]]
-    });
-  }
+  selectedTicketId: number | null = null;
+  category = '';
+  rating = 0;
+  hoverRating = 0;
+  feedbackText = '';
+
+  submitted = false;
+  saving = false;
+  errorMessage = '';
+  showSuccess = false;
+
+  categories = ['Service Quality', 'Professionalism', 'Response Time', 'Communication', 'Other'];
+  ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
+
+  constructor(private ticketService: TicketService, private feedbackService: FeedbackService,
+              private authService: AuthService, private route: ActivatedRoute) {}
 
   ngOnInit(): void {
-    const ticketId = Number(this.route.snapshot.paramMap.get('ticketId'));
-    if (!ticketId) {
-      this.router.navigate(['/client/agents']);
-      return;
+    const ticketId = this.route.snapshot.queryParamMap.get('ticketId');
+    if (ticketId) {
+      this.selectedTicketId = Number(ticketId);
     }
-    this.ticketService.getTicketById(ticketId).subscribe({
-      next: ticket => (this.ticket = ticket),
-      error: (err: HttpErrorResponse) => (this.errorMessage = this.errorHandler.getMessage(err))
-    });
+    this.loadEligibleTickets();
   }
 
-  showError(field: string): boolean {
-    const control = this.feedbackForm.get(field);
-    return !!control && control.invalid && (control.touched || this.submitted);
-  }
-
-  hasError(field: string, error: string): boolean {
-    return !!this.feedbackForm.get(field)?.hasError(error);
-  }
-
-  onSubmit(): void {
-    this.submitted = true;
-    this.errorMessage = '';
-    if (this.feedbackForm.invalid || !this.ticket?.ticketId) {
-      this.feedbackForm.markAllAsTouched();
-      return;
-    }
+  // Feedback can be written for Resolved / Closed tickets with an agent that have no feedback yet
+  loadEligibleTickets(): void {
     this.loading = true;
-    const value = this.feedbackForm.value;
-    const feedback: Feedback = {
-      feedbackText: (value.feedbackText as string).trim(),
-      date: new Date(),
-      userId: this.authService.getUserId() as number,
-      agentId: this.ticket.agentId,
-      ticketId: this.ticket.ticketId,
-      category: value.category as string,
-      rating: Number(value.rating)
-    };
-    this.feedbackService.sendFeedback(feedback).subscribe({
-      next: () => {
-        this.loading = false;
-        this.showSuccess = true;
+    const userId = this.authService.getUserId();
+    this.ticketService.getTicketsByUserId(userId).subscribe({
+      next: (tickets) => {
+        this.feedbackService.getAllFeedbacksByUserId(userId).subscribe({
+          next: (feedbacks) => {
+            const reviewed = feedbacks.map(f => f.ticket?.ticketId);
+            this.eligibleTickets = tickets.filter(t => UI.isDone(t) && !!t.supportAgent && !reviewed.includes(t.ticketId));
+            if (!this.eligibleTickets.some(t => t.ticketId === this.selectedTicketId)) {
+              this.selectedTicketId = null;
+            }
+            this.loading = false;
+          },
+          error: () => this.loading = false
+        });
       },
-      error: (err: HttpErrorResponse) => {
+      error: (error) => {
         this.loading = false;
-        this.errorMessage = err.status === 409
-          ? 'You have already submitted feedback for this ticket.'
-          : this.errorHandler.getMessage(err);
+        this.errorMessage = UI.errorMessage(error, 'Could not load your tickets.');
       }
     });
   }
 
-  onSuccessOk(): void {
-    this.showSuccess = false;
-    this.submitted = false;
-    this.feedbackForm.reset({ feedbackText: '', category: '', rating: '' });
+  get selectedTicket(): Ticket | undefined {
+    return this.eligibleTickets.find(t => t.ticketId === this.selectedTicketId);
+  }
+
+  get shownRating(): number {
+    return this.hoverRating || this.rating;
+  }
+
+  onSubmit(form: NgForm): void {
+    this.submitted = true;
+    this.errorMessage = '';
+    if (form.invalid || !this.selectedTicketId || this.rating < 1) {
+      return;
+    }
+
+    // The backend fills in the user (from the JWT), the agent (from the ticket) and the date
+    const feedback: Feedback = {
+      feedbackText: this.feedbackText.trim(),
+      category: this.category,
+      rating: this.rating,
+      ticket: { ticketId: this.selectedTicketId } as Ticket
+    };
+
+    this.saving = true;
+    this.feedbackService.sendFeedback(feedback).subscribe({
+      next: () => {
+        this.saving = false;
+        this.showSuccess = true;
+        form.resetForm();
+        this.selectedTicketId = null;
+        this.rating = 0;
+        this.submitted = false;
+        this.loadEligibleTickets();
+      },
+      error: (error) => {
+        this.saving = false;
+        this.errorMessage = UI.errorMessage(error, 'Could not submit your feedback.');
+      }
+    });
   }
 }

@@ -1,13 +1,8 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
-import { AGENT_STATUS } from '../../constants/constant';
 import { SupportAgent } from '../../models/support-agent.model';
-import { ErrorHandlerService } from '../../services/error-handler.service';
-import { NotificationService } from '../../services/notification.service';
 import { SupportAgentService } from '../../services/support-agent.service';
+import { UI } from '../ui-helpers';
 
-/** Manager: "Support Agents" table with search, status filter, edit/delete/toggle/profile. */
 @Component({
   selector: 'app-manager-view-agents',
   templateUrl: './manager-view-agents.component.html',
@@ -15,83 +10,114 @@ import { SupportAgentService } from '../../services/support-agent.service';
 })
 export class ManagerViewAgentsComponent implements OnInit {
 
-  readonly statuses = [AGENT_STATUS.AVAILABLE, AGENT_STATUS.UNAVAILABLE];
+  ui = UI;
   agents: SupportAgent[] = [];
-  searchText = '';
-  statusFilter = '';
   loading = true;
-  agentToDelete: SupportAgent | null = null;
-  profileAgent: SupportAgent | null = null;
+  errorMessage = '';
 
-  constructor(
-    private readonly agentService: SupportAgentService,
-    private readonly notification: NotificationService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly router: Router
-  ) {}
+  // Search by name and expertise, filter by status (SRS)
+  nameSearch = '';
+  expertiseSearch = '';
+  statusFilter = '';
+  view = 'table';
+
+  viewAgent: SupportAgent | null = null;
+  deleteAgent: SupportAgent | null = null;
+  deleteError = '';
+
+  toastTitle = '';
+  toastText = '';
+  toastKind = 'ok';
+
+  constructor(private agentService: SupportAgentService) {}
 
   ngOnInit(): void {
     this.loadAgents();
   }
 
-  get filteredAgents(): SupportAgent[] {
-    const term = this.searchText.trim().toLowerCase();
-    return this.agents.filter(a =>
-      (!term || a.name.toLowerCase().includes(term) || a.expertise.toLowerCase().includes(term)) &&
-      (!this.statusFilter || a.status === this.statusFilter));
-  }
-
-  isAvailable(agent: SupportAgent): boolean {
-    return agent.status === AGENT_STATUS.AVAILABLE;
-  }
-
-  editAgent(agent: SupportAgent): void {
-    this.router.navigate(['/manager/agents/edit', agent.agentId]);
-  }
-
-  toggleStatus(agent: SupportAgent): void {
-    if (!agent.agentId) {
-      return;
-    }
-    const updated: SupportAgent = {
-      ...agent,
-      status: this.isAvailable(agent) ? AGENT_STATUS.UNAVAILABLE : AGENT_STATUS.AVAILABLE
-    };
-    this.agentService.updateAgent(agent.agentId, updated).subscribe({
-      next: saved => {
-        agent.status = saved.status;
-        this.notification.success(`${saved.name} is now ${saved.status}.`);
-      },
-      error: (err: HttpErrorResponse) => this.notification.error(this.errorHandler.getMessage(err))
-    });
-  }
-
-  confirmDelete(): void {
-    const agent = this.agentToDelete;
-    this.agentToDelete = null;
-    if (!agent?.agentId) {
-      return;
-    }
-    this.agentService.deleteAgent(agent.agentId).subscribe({
-      next: () => {
-        this.notification.success('Support agent deleted successfully.');
-        this.loadAgents();
-      },
-      error: (err: HttpErrorResponse) => this.notification.error(this.errorHandler.getMessage(err))
-    });
-  }
-
-  private loadAgents(): void {
+  loadAgents(): void {
     this.loading = true;
+    this.errorMessage = '';
     this.agentService.getAllAgents().subscribe({
-      next: agents => {
+      next: (agents) => {
         this.agents = agents;
         this.loading = false;
       },
-      error: () => {
-        this.agents = [];
+      error: (error) => {
         this.loading = false;
+        this.errorMessage = UI.errorMessage(error, 'Could not load support agents.');
       }
     });
+  }
+
+  get filteredAgents(): SupportAgent[] {
+    const name = this.nameSearch.trim().toLowerCase();
+    const expertise = this.expertiseSearch.trim().toLowerCase();
+    const result: SupportAgent[] = [];
+    for (const a of this.agents) {
+      if ((!name || a.name.toLowerCase().includes(name))
+          && (!expertise || a.expertise.toLowerCase().includes(expertise))
+          && (!this.statusFilter || a.status === this.statusFilter)) {
+        result.push(a);
+      }
+    }
+    return result;
+  }
+
+  get availableCount(): number {
+    let count = 0;
+    for (const a of this.agents) {
+      if (a.status === 'Available') { count++; }
+    }
+    return count;
+  }
+
+  get anyFilter(): boolean {
+    return !!(this.nameSearch || this.expertiseSearch || this.statusFilter);
+  }
+
+  clearFilters(): void {
+    this.nameSearch = '';
+    this.expertiseSearch = '';
+    this.statusFilter = '';
+  }
+
+  // "Make Available" / "Make Unavailable"
+  toggleStatus(agent: SupportAgent): void {
+    const newStatus = agent.status === 'Available' ? 'Unavailable' : 'Available';
+    const updated: SupportAgent = { ...agent, status: newStatus };
+    this.agentService.updateAgent(agent.agentId!, updated).subscribe({
+      next: (saved) => {
+        agent.status = saved.status;
+        this.showToast(agent.name + ' is now ' + saved.status, 'Availability updated.', 'info');
+      },
+      error: (error) => this.showToast('Could not update availability', UI.errorMessage(error, 'Please try again.'), 'err')
+    });
+  }
+
+  askDelete(agent: SupportAgent): void {
+    this.deleteError = '';
+    this.deleteAgent = agent;
+  }
+
+  confirmDelete(): void {
+    if (!this.deleteAgent) { return; }
+    const agent = this.deleteAgent;
+    this.agentService.deleteAgent(agent.agentId!).subscribe({
+      next: () => {
+        this.deleteAgent = null;
+        this.agents = this.agents.filter(a => a.agentId !== agent.agentId);
+        this.showToast('Support agent deleted', agent.name + ' was removed.', 'ok');
+      },
+      // For example AgentDeletionException (409) when the agent still has tickets
+      error: (error) => this.deleteError = UI.errorMessage(error, 'Could not delete the agent.')
+    });
+  }
+
+  private showToast(title: string, text: string, kind: string): void {
+    this.toastKind = kind;
+    this.toastTitle = title;
+    this.toastText = text;
+    setTimeout(() => this.toastTitle = '', 4200);
   }
 }

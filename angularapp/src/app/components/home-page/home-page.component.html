@@ -1,22 +1,139 @@
-<section class="hero" id="homeHero">
-  <div class="hero-overlay">
-    <h1 id="homeTitle">SupportSphere</h1>
-    <p>Your ultimate solution for managing client tickets and support processes</p>
-  </div>
-</section>
+<div class="page">
 
-<section class="welcome-card">
-  <h2>Welcome to SupportSphere</h2>
-  <p>
-    Streamline your client support needs with SupportSphere. We provide a comprehensive platform for managing
-    support tickets, assigning agents, and ensuring timely issue resolution.
-  </p>
-</section>
+  <!-- ===================== CLIENT HOME ===================== -->
+  <ng-container *ngIf="!isManager">
+    <section class="card hero">
+      <div style="position:relative;z-index:1">
+        <p class="muted" style="font-size:13px;font-weight:500;margin-bottom:4px">{{ greeting }}, {{ firstName }}</p>
+        <h1>How can we help you today?</h1>
+        <p>Raise a ticket and our support team will pick it up. Track its progress, confirm the fix and share feedback — all in one place.</p>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-pri btn-lg" routerLink="/client/tickets/add"><span class="ic i-plus"></span>Create New Ticket</a>
+        <a class="btn btn-sec btn-lg" routerLink="/client/tickets"><span class="ic i-ticket"></span>View My Tickets</a>
+      </div>
+    </section>
 
-<hr class="divider" />
+    <div *ngIf="errorMessage" class="alert alert-err" role="alert" style="margin-bottom:16px">
+      <span class="ic i-alert-circle"></span><div>{{ errorMessage }} <button type="button" class="link-btn" (click)="loadMyTickets()">Retry</button></div>
+    </div>
 
-<section class="contact-card" id="contactSupport">
-  <h3>Contact Support</h3>
-  <p>📞 Phone: {{ supportPhone }}</p>
-  <p>📧 Email: {{ supportEmail }}</p>
-</section>
+    <div class="kpi-grid k3">
+      <a class="card kpi" routerLink="/client/tickets" [attr.aria-label]="'Total tickets: ' + tickets.length">
+        <div class="kpi-top"><span class="kpi-lbl">Total Tickets</span><span class="kpi-ic k-pri"><span class="ic i-ticket"></span></span></div>
+        <div class="kpi-num"><span *ngIf="!loading">{{ tickets.length }}</span><span *ngIf="loading" class="sk" style="display:inline-block;width:48px;height:28px"></span></div>
+        <div class="kpi-trend"><span class="trunc">Raised since you joined</span></div>
+      </a>
+      <a class="card kpi" routerLink="/client/tickets" [queryParams]="{ status: 'Open' }" [attr.aria-label]="'Open tickets: ' + openCount">
+        <div class="kpi-top"><span class="kpi-lbl">Open Tickets</span><span class="kpi-ic k-warn"><span class="ic i-circle"></span></span></div>
+        <div class="kpi-num"><span *ngIf="!loading">{{ openCount }}</span><span *ngIf="loading" class="sk" style="display:inline-block;width:48px;height:28px"></span></div>
+        <div class="kpi-trend"><span class="trunc">Open or in progress</span></div>
+      </a>
+      <a class="card kpi" routerLink="/client/tickets" [queryParams]="{ status: 'Resolved' }" [attr.aria-label]="'Resolved tickets: ' + resolvedCount">
+        <div class="kpi-top"><span class="kpi-lbl">Resolved Tickets</span><span class="kpi-ic k-ok"><span class="ic i-circle-check"></span></span></div>
+        <div class="kpi-num"><span *ngIf="!loading">{{ resolvedCount }}</span><span *ngIf="loading" class="sk" style="display:inline-block;width:48px;height:28px"></span></div>
+        <div class="kpi-trend"><span class="trunc">Resolved or closed</span></div>
+      </a>
+    </div>
+
+    <div class="grid-2">
+      <section class="card" aria-labelledby="h-myrecent">
+        <div class="card-h">
+          <div><h2 class="card-t" id="h-myrecent">Recent tickets</h2><p class="card-s">Your latest support requests</p></div>
+          <a class="btn btn-sec btn-sm" routerLink="/client/tickets">View all</a>
+        </div>
+        <div *ngIf="loading">
+          <div class="sk-row" *ngFor="let x of [1,2,3,4]"><div class="sk sk-l" style="width:50px"></div><div class="sk sk-l" style="flex:1 1 auto"></div><div class="sk" style="width:90px;height:22px;border-radius:999px"></div></div>
+        </div>
+        <div *ngIf="!loading && recentTickets.length > 0">
+          <a *ngFor="let t of recentTickets" class="list-row" [routerLink]="['/client/tickets', t.ticketId]" [attr.aria-label]="'Open ticket ' + t.ticketId + ': ' + t.title">
+            <span class="tid">#{{ t.ticketId }}</span>
+            <span class="grow"><span class="trunc" style="display:block;font-weight:500">{{ t.title }}</span><span class="muted" style="font-size:12.5px">{{ t.issueCategory }} · {{ ui.relativeDate(t.createdDate) }}</span></span>
+            <span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars"><i></i><i></i><i></i></span>{{ t.priority }}</span>
+            <span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span>
+          </a>
+        </div>
+        <div *ngIf="!loading && !errorMessage && recentTickets.length === 0" class="empty">
+          <div class="empty-art"><div class="tile"><span class="ic i-ticket ic-24"></span></div></div>
+          <h3 class="empty-t">No tickets found</h3>
+          <p class="empty-d">You haven’t raised any tickets yet. When you do, you can track their progress here.</p>
+          <a class="btn btn-pri" routerLink="/client/tickets/add"><span class="ic i-plus"></span>Create New Ticket</a>
+        </div>
+      </section>
+
+      <div class="det-col">
+        <section class="card" aria-labelledby="h-attn">
+          <div class="card-h flat"><div><h2 class="card-t" id="h-attn">Waiting on you</h2><p class="card-s">Tickets an agent is working on — confirm once fixed</p></div></div>
+          <div class="card-b" style="padding-top:12px">
+            <div *ngIf="waitingOnYou.length > 0" class="opt-list">
+              <a *ngFor="let t of waitingOnYou" class="faq-btn" [routerLink]="['/client/tickets', t.ticketId]" style="text-decoration:none">
+                <span class="avatar av-sm" [style.background]="ui.avatar(t.supportAgent?.name).bg" [style.color]="ui.avatar(t.supportAgent?.name).fg">{{ ui.avatar(t.supportAgent?.name).ini }}</span>
+                <span class="grow"><span class="trunc" style="display:block;font-weight:500">{{ t.title }}</span><span class="muted" style="font-size:12px">{{ t.supportAgent?.name }} is assigned · add a resolution summary</span></span>
+                <span class="ic i-chev-right" style="color:var(--tx3)"></span>
+              </a>
+            </div>
+            <p *ngIf="waitingOnYou.length === 0" class="muted" style="font-size:13px">Nothing needs your attention right now.</p>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="h-how">
+          <div class="card-h flat"><div><h2 class="card-t" id="h-how">How SupportSphere works</h2><p class="card-s">The life of a support ticket</p></div></div>
+          <div class="card-b" style="padding-top:12px">
+            <ol class="side-steps">
+              <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">1</span><span><b>Open</b><span class="d">You raise a ticket. Edit or delete it until an agent is assigned.</span></span></li>
+              <li><span class="n" style="background:#FFFBEB;color:#92400E">2</span><span><b>Agent assigned</b><span class="d">A manager assigns an agent whose expertise matches the category.</span></span></li>
+              <li><span class="n" style="background:#F0FDF4;color:#166534">3</span><span><b>Resolved</b><span class="d">You add a resolution summary and your satisfaction, then mark it resolved.</span></span></li>
+              <li><span class="n" style="background:var(--sub);color:#475569">4</span><span><b>Closed</b><span class="d">The manager closes the ticket. You can then leave a review.</span></span></li>
+            </ol>
+          </div>
+        </section>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- ===================== MANAGER HOME ===================== -->
+  <ng-container *ngIf="isManager">
+    <section class="card hero">
+      <div style="position:relative;z-index:1">
+        <p class="muted" style="font-size:13px;font-weight:500;margin-bottom:4px">{{ greeting }}, {{ firstName }}</p>
+        <h1>Welcome to SupportSphere</h1>
+        <p>SupportSphere streamlines client support: clients raise tickets, you assign the right agent, and every resolution is tracked through to client feedback.</p>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-pri btn-lg" routerLink="/manager/dashboard"><span class="ic i-grid"></span>Open Dashboard</a>
+        <a class="btn btn-sec btn-lg" routerLink="/manager/tickets"><span class="ic i-ticket"></span>View Tickets</a>
+      </div>
+    </section>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <a class="card kpi" routerLink="/manager/dashboard">
+        <div class="kpi-top"><span class="kpi-lbl">Dashboard</span><span class="kpi-ic k-pri"><span class="ic i-grid"></span></span></div>
+        <p class="muted" style="margin-top:10px;font-size:13px">Ticket status, activity and client satisfaction at a glance.</p>
+      </a>
+      <a class="card kpi" routerLink="/manager/tickets">
+        <div class="kpi-top"><span class="kpi-lbl">Tickets</span><span class="kpi-ic k-warn"><span class="ic i-ticket"></span></span></div>
+        <p class="muted" style="margin-top:10px;font-size:13px">Assign agents to new tickets and close resolved ones.</p>
+      </a>
+      <a class="card kpi" routerLink="/manager/agents">
+        <div class="kpi-top"><span class="kpi-lbl">Support Agents</span><span class="kpi-ic k-ok"><span class="ic i-users"></span></span></div>
+        <p class="muted" style="margin-top:10px;font-size:13px">Add agents and manage their expertise, shifts and availability.</p>
+      </a>
+      <a class="card kpi" routerLink="/manager/feedbacks">
+        <div class="kpi-top"><span class="kpi-lbl">Feedbacks</span><span class="kpi-ic"><span class="ic i-message"></span></span></div>
+        <p class="muted" style="margin-top:10px;font-size:13px">See how clients rate their support experience.</p>
+      </a>
+    </div>
+
+    <section class="card" aria-labelledby="h-life">
+      <div class="card-h"><div><h2 class="card-t" id="h-life">Ticket lifecycle</h2><p class="card-s">Who does what in SupportSphere</p></div></div>
+      <div class="card-b">
+        <ol class="side-steps">
+          <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">1</span><span><b>Open</b><span class="d">A client raises a ticket with a title, description, priority and issue category.</span></span></li>
+          <li><span class="n" style="background:#FFFBEB;color:#92400E">2</span><span><b>Agent assigned</b><span class="d">You assign an available agent — suggestions match the agent’s expertise to the ticket category.</span></span></li>
+          <li><span class="n" style="background:#F0FDF4;color:#166534">3</span><span><b>Resolved</b><span class="d">The client adds a resolution summary and satisfaction status, then marks it resolved.</span></span></li>
+          <li><span class="n" style="background:var(--sub);color:#475569">4</span><span><b>Closed</b><span class="d">You close the ticket. The client can then review the agent.</span></span></li>
+        </ol>
+      </div>
+    </section>
+  </ng-container>
+</div>

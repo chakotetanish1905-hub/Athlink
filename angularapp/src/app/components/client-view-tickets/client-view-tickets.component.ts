@@ -1,14 +1,11 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
-import { PRIORITIES, TICKET_STATUS } from '../../constants/constant';
+import { ActivatedRoute } from '@angular/router';
 import { Ticket } from '../../models/ticket.model';
 import { AuthService } from '../../services/auth.service';
-import { ErrorHandlerService } from '../../services/error-handler.service';
-import { NotificationService } from '../../services/notification.service';
+import { FeedbackService } from '../../services/feedback.service';
 import { TicketService } from '../../services/ticket.service';
+import { UI } from '../ui-helpers';
 
-/** Client: "Your Tickets" with search (title / issue category) and priority filter. */
 @Component({
   selector: 'app-client-view-tickets',
   templateUrl: './client-view-tickets.component.html',
@@ -16,75 +13,110 @@ import { TicketService } from '../../services/ticket.service';
 })
 export class ClientViewTicketsComponent implements OnInit {
 
-  readonly priorities = PRIORITIES;
+  ui = UI;
   tickets: Ticket[] = [];
+  reviewedTicketIds: number[] = [];
+  loading = true;
+  errorMessage = '';
+
+  // Search by title / issue category and filter by priority (SRS), plus status tabs
   searchText = '';
   priorityFilter = '';
-  loading = true;
-  ticketToDelete: Ticket | null = null;
+  statusFilter = '';
+  statusTabs = ['', 'Open', 'In Progress', 'Resolved', 'Closed'];
 
-  constructor(
-    private readonly ticketService: TicketService,
-    private readonly authService: AuthService,
-    private readonly notification: NotificationService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly router: Router
-  ) {}
+  deleteTicket: Ticket | null = null;
+  deleteError = '';
+  toastTitle = '';
+
+  constructor(private ticketService: TicketService, private feedbackService: FeedbackService,
+              private authService: AuthService, private route: ActivatedRoute) {}
 
   ngOnInit(): void {
+    this.route.queryParams.subscribe(params => {
+      this.searchText = params['q'] || '';
+      this.statusFilter = params['status'] || '';
+    });
     this.loadTickets();
   }
 
+  loadTickets(): void {
+    this.loading = true;
+    this.errorMessage = '';
+    const userId = this.authService.getUserId();
+    this.ticketService.getTicketsByUserId(userId).subscribe({
+      next: (tickets) => {
+        this.tickets = tickets.sort(UI.newestFirst);
+        this.loading = false;
+      },
+      error: (error) => {
+        this.loading = false;
+        this.errorMessage = UI.errorMessage(error, 'Could not load your tickets.');
+      }
+    });
+    // Used to show "Review" only for tickets without feedback
+    this.feedbackService.getAllFeedbacksByUserId(userId).subscribe({
+      next: (feedbacks) => this.reviewedTicketIds = feedbacks.map(f => f.ticket?.ticketId || 0),
+      error: () => this.reviewedTicketIds = []
+    });
+  }
+
   get filteredTickets(): Ticket[] {
-    const term = this.searchText.trim().toLowerCase();
-    return this.tickets.filter(t =>
-      (!term || t.title.toLowerCase().includes(term) || t.issueCategory.toLowerCase().includes(term)) &&
-      (!this.priorityFilter || t.priority === this.priorityFilter));
+    return this.applyFilters(this.statusFilter);
   }
 
-  /** Edit/Delete are only allowed while the ticket is Open and no agent is assigned. */
-  canModify(ticket: Ticket): boolean {
-    return ticket.status === TICKET_STATUS.OPEN && !ticket.agentId;
+  countForTab(status: string): number {
+    return this.applyFilters(status).length;
   }
 
-  editTicket(ticket: Ticket): void {
-    this.router.navigate(['/client/tickets/edit', ticket.ticketId]);
+  get anyFilter(): boolean {
+    return !!(this.searchText || this.priorityFilter || this.statusFilter);
   }
 
-  viewAgent(ticket: Ticket): void {
-    this.router.navigate(['/client/tickets', ticket.ticketId]);
+  clearFilters(): void {
+    this.searchText = '';
+    this.priorityFilter = '';
+    this.statusFilter = '';
+  }
+
+  // SRS: edit / delete only while the ticket is Open and no agent is assigned
+  canEdit(t: Ticket): boolean {
+    return t.status === 'Open' && !t.supportAgent;
+  }
+
+  canReview(t: Ticket): boolean {
+    return UI.isDone(t) && !!t.supportAgent && !this.reviewedTicketIds.includes(t.ticketId || 0);
+  }
+
+  askDelete(ticket: Ticket): void {
+    this.deleteError = '';
+    this.deleteTicket = ticket;
   }
 
   confirmDelete(): void {
-    const ticket = this.ticketToDelete;
-    this.ticketToDelete = null;
-    if (!ticket?.ticketId) {
-      return;
-    }
-    this.ticketService.deleteTicket(ticket.ticketId).subscribe({
+    if (!this.deleteTicket) { return; }
+    const ticket = this.deleteTicket;
+    this.ticketService.deleteTicket(ticket.ticketId!).subscribe({
       next: () => {
-        this.notification.success('Ticket deleted successfully.');
-        this.loadTickets();
+        this.deleteTicket = null;
+        this.tickets = this.tickets.filter(t => t.ticketId !== ticket.ticketId);
+        this.toastTitle = 'Ticket #' + ticket.ticketId + ' deleted';
+        setTimeout(() => this.toastTitle = '', 4200);
       },
-      error: (err: HttpErrorResponse) => this.notification.error(this.errorHandler.getMessage(err))
+      error: (error) => this.deleteError = UI.errorMessage(error, 'Could not delete the ticket.')
     });
   }
 
-  private loadTickets(): void {
-    const userId = this.authService.getUserId();
-    if (userId === null) {
-      return;
-    }
-    this.loading = true;
-    this.ticketService.getTicketsByUserId(userId).subscribe({
-      next: tickets => {
-        this.tickets = tickets;
-        this.loading = false;
-      },
-      error: () => {
-        this.tickets = [];
-        this.loading = false;
+  private applyFilters(status: string): Ticket[] {
+    const text = this.searchText.trim().toLowerCase().replace('#', '');
+    const result: Ticket[] = [];
+    for (const t of this.tickets) {
+      const matchesText = !text || t.title.toLowerCase().includes(text)
+        || t.issueCategory.toLowerCase().includes(text) || String(t.ticketId) === text;
+      if (matchesText && (!this.priorityFilter || t.priority === this.priorityFilter) && (!status || t.status === status)) {
+        result.push(t);
       }
-    });
+    }
+    return result;
   }
 }

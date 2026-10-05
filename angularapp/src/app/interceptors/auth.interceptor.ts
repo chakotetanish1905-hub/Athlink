@@ -1,62 +1,32 @@
-import {
-  HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest
-} from '@angular/common/http';
+import { HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, Observable, throwError } from 'rxjs';
-import { PUBLIC_API_URLS } from '../constants/constant';
+import { Observable, catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
-import { ErrorHandlerService } from '../services/error-handler.service';
-import { NotificationService } from '../services/notification.service';
 
-/**
- * The ONLY place that attaches "Authorization: Bearer <JWT>".
- * Also centralises 401 (session expired -> logout + login page), 403, 5xx and network errors.
- */
+// Adds "Authorization: Bearer <token>" to every API call, so the services don't have to.
+// If the token is missing or expired (401), the user is sent back to the login page.
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
 
-  constructor(
-    private readonly authService: AuthService,
-    private readonly router: Router,
-    private readonly notification: NotificationService
-  ) {}
+  constructor(private authService: AuthService, private router: Router) {}
 
-  intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    const isPublic = PUBLIC_API_URLS.some(url => request.url.startsWith(url));
+  intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     const token = this.authService.getToken();
+    const isAuthCall = request.url.endsWith('/api/login') || request.url.endsWith('/api/register');
 
-    const outgoing = token && !isPublic
-      ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-      : request;
+    if (token && !isAuthCall) {
+      request = request.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+    }
 
-    return next.handle(outgoing).pipe(
-      catchError((error: unknown) => {
-        if (error instanceof HttpErrorResponse && !isPublic) {
-          this.handleGlobalError(error);
+    return next.handle(request).pipe(
+      catchError((error: HttpErrorResponse) => {
+        if (error.status === 401 && !isAuthCall) {
+          this.authService.logout();
+          this.router.navigate(['/login']);
         }
         return throwError(() => error);
       })
     );
-  }
-
-  private handleGlobalError(error: HttpErrorResponse): void {
-    switch (error.status) {
-      case 401:
-        this.authService.logout();
-        this.notification.error(ErrorHandlerService.DEFAULT_MESSAGES[401]);
-        this.router.navigate(['/login']);
-        break;
-      case 403:
-        this.notification.error(ErrorHandlerService.DEFAULT_MESSAGES[403]);
-        break;
-      case 0:
-        this.notification.error(ErrorHandlerService.DEFAULT_MESSAGES[0]);
-        break;
-      default:
-        if (error.status >= 500) {
-          this.notification.error(ErrorHandlerService.DEFAULT_MESSAGES[500]);
-        }
-    }
   }
 }

@@ -1,54 +1,92 @@
-<div class="form-card">
-  <button *ngIf="isEditMode" type="button" id="backButton" class="btn btn-info btn-sm back-button" (click)="goBack()">Back</button>
-  <h2 id="ticketFormTitle">{{ isEditMode ? 'Edit Ticket' : 'Create New Ticket' }}</h2>
+<div class="page">
+  <a class="back" routerLink="/client/tickets"><span class="ic i-arrow-left ic-14"></span>Back</a>
+  <div class="page-head"><div>
+    <h1 class="page-title">{{ editId ? 'Edit Ticket' : 'Create New Ticket' }}</h1>
+    <p class="page-sub">{{ editId ? 'Update the details while the ticket is still unassigned.' : 'Describe your issue and we’ll route it to the right agent.' }}</p>
+  </div></div>
 
-  <form id="ticketForm" [formGroup]="ticketForm" (ngSubmit)="onSubmit()" novalidate>
-    <div class="form-group">
-      <label for="title">Title<span class="required">*</span></label>
-      <input id="title" name="title" class="form-control" formControlName="title" [class.is-invalid]="showError('title')" />
-      <div class="error-text" *ngIf="showError('title')">
-        <span *ngIf="hasError('title', 'required')">*Title is required</span>
-        <span *ngIf="hasError('title', 'maxlength')">*Title must not exceed 100 characters</span>
-      </div>
-    </div>
+  <form #ticketForm="ngForm" (ngSubmit)="onSubmit(ticketForm)" novalidate>
+    <div class="form-layout">
+      <section class="card">
+        <div class="form-sec">
+          <h2 class="sec-t">Issue details</h2><p class="sec-d">Give the team enough context to start without a follow-up.</p>
+          <div class="fgrid">
+            <div class="field full">
+              <label class="label" for="title">Title <span class="req" aria-hidden="true">*</span></label>
+              <input id="title" name="title" class="input" type="text" placeholder="e.g. Unable to log in after password reset" maxlength="120"
+                     [(ngModel)]="ticket.title" #title="ngModel" required minlength="5" [class.is-err]="title.invalid && (title.touched || submitted)">
+              <p class="field-err" *ngIf="title.errors?.['required'] && (title.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Title is required</p>
+              <p class="field-err" *ngIf="title.errors?.['minlength'] && (title.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Title must be at least 5 characters</p>
+            </div>
+            <div class="field full">
+              <div class="row"><label class="label" for="description">Description <span class="req" aria-hidden="true">*</span></label><span class="counter">{{ ticket.description.length }} / 2000</span></div>
+              <textarea id="description" name="description" class="textarea" rows="7" maxlength="2000" placeholder="What happened, what you expected, and any steps to reproduce."
+                        [(ngModel)]="ticket.description" #description="ngModel" required minlength="20" [class.is-err]="description.invalid && (description.touched || submitted)"></textarea>
+              <p class="field-err" *ngIf="description.errors?.['required'] && (description.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Description is required</p>
+              <p class="field-err" *ngIf="description.errors?.['minlength'] && (description.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Describe the issue in at least 20 characters</p>
+            </div>
+          </div>
+        </div>
 
-    <div class="form-group">
-      <label for="description">Description<span class="required">*</span></label>
-      <textarea id="description" name="description" class="form-control" formControlName="description"
-                [class.is-invalid]="showError('description')"></textarea>
-      <div class="error-text" *ngIf="showError('description')">
-        <span *ngIf="hasError('description', 'required')">*Description is required</span>
-        <span *ngIf="hasError('description', 'maxlength')">*Description must not exceed 2000 characters</span>
-      </div>
-    </div>
+        <div class="form-sec">
+          <h2 class="sec-t">Classification</h2><p class="sec-d">Used to route the ticket and suggest a matching agent.</p>
+          <fieldset class="field" style="border:0;padding:0;margin:0 0 20px">
+            <legend class="label" style="margin-bottom:8px">Priority <span class="req" aria-hidden="true">*</span></legend>
+            <div class="opt-grid c3">
+              <label *ngFor="let p of priorities" class="opt" [class.sel]="ticket.priority === p.value" [class.err-ring]="submitted && !ticket.priority">
+                <input class="sr-only" type="radio" name="priority" [value]="p.value" [(ngModel)]="ticket.priority">
+                <span class="radio-dot"></span>
+                <span><span class="pri" [ngClass]="p.cls"><span class="pri-bars"><i></i><i></i><i></i></span><span class="ot">{{ p.value }}</span></span><span class="od" style="display:block">{{ p.hint }}</span></span>
+              </label>
+            </div>
+            <p class="field-err" *ngIf="submitted && !ticket.priority"><span class="ic i-alert-circle ic-14"></span>Select a priority</p>
+          </fieldset>
+          <fieldset class="field" style="border:0;padding:0;margin:0">
+            <legend class="label" style="margin-bottom:8px">Issue category <span class="req" aria-hidden="true">*</span></legend>
+            <div class="opt-grid c3">
+              <label *ngFor="let c of categories" class="opt" [class.sel]="ticket.issueCategory === c.value" [class.err-ring]="submitted && !ticket.issueCategory">
+                <input class="sr-only" type="radio" name="issueCategory" [value]="c.value" [(ngModel)]="ticket.issueCategory">
+                <span class="radio-dot"></span>
+                <span><span class="ot" style="display:block">{{ c.value }}</span><span class="od" style="display:block">{{ c.hint }}</span></span>
+              </label>
+            </div>
+            <p class="field-err" *ngIf="submitted && !ticket.issueCategory"><span class="ic i-alert-circle ic-14"></span>Select an issue category</p>
+          </fieldset>
+        </div>
 
-    <div class="form-group">
-      <label for="priority">Priority<span class="required">*</span></label>
-      <select id="priority" name="priority" class="form-control" formControlName="priority" [class.is-invalid]="showError('priority')">
-        <option value="" disabled>Select Priority</option>
-        <option *ngFor="let p of priorities" [value]="p">{{ p }}</option>
-      </select>
-      <div class="error-text" *ngIf="showError('priority')">*Priority is required</div>
-    </div>
+        <div class="form-foot" style="flex-wrap:wrap">
+          <div *ngIf="submitted && (ticketForm.invalid || !ticket.priority || !ticket.issueCategory)" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px">
+            <span class="ic i-alert-circle"></span><div>Please fill in all required fields correctly.</div></div>
+          <div *ngIf="errorMessage" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px"><span class="ic i-alert-circle"></span><div>{{ errorMessage }}</div></div>
+          <a class="btn btn-sec" routerLink="/client/tickets">Cancel</a>
+          <button type="submit" class="btn btn-pri" [disabled]="saving">{{ editId ? 'Update Ticket' : 'Add Ticket' }}</button>
+        </div>
+      </section>
 
-    <div class="form-group">
-      <label for="issueCategory">Issue Category<span class="required">*</span></label>
-      <select id="issueCategory" name="issueCategory" class="form-control" formControlName="issueCategory"
-              [class.is-invalid]="showError('issueCategory')">
-        <option value="" disabled>Select Issue Category</option>
-        <option *ngFor="let c of issueCategories" [value]="c">{{ c }}</option>
-      </select>
-      <div class="error-text" *ngIf="showError('issueCategory')">*Issue Category is required</div>
-    </div>
-
-    <div class="form-error" id="ticketFormError" *ngIf="formMessage">*{{ formMessage }}</div>
-
-    <div class="form-actions">
-      <button type="submit" id="submitTicketButton" class="btn btn-primary" [disabled]="loading || ticketForm.disabled">
-        {{ isEditMode ? 'Update Ticket' : 'Add Ticket' }}
-      </button>
+      <aside class="card" aria-labelledby="h-life">
+        <div class="card-h"><h2 class="card-t" id="h-life">Ticket lifecycle</h2></div>
+        <div class="card-b">
+          <div class="field" style="margin-bottom:18px"><span class="label">Status</span>
+            <div class="row"><span class="badge st-open"><span class="ic i-circle ic-12"></span>{{ ticket.status || 'Open' }}</span><span class="hint">Set automatically</span></div></div>
+          <ol class="side-steps">
+            <li><span class="n" style="background:var(--pri-50);color:var(--pri-d)">1</span><span><b>Open</b><span class="d">You raise the ticket. Edit or delete it until an agent is assigned.</span></span></li>
+            <li><span class="n" style="background:#FFFBEB;color:#92400E">2</span><span><b>Agent assigned</b><span class="d">A manager assigns an agent whose expertise matches the category.</span></span></li>
+            <li><span class="n" style="background:#F0FDF4;color:#166534">3</span><span><b>Resolved</b><span class="d">You add a resolution summary and satisfaction status, then mark it resolved.</span></span></li>
+            <li><span class="n" style="background:var(--sub);color:#475569">4</span><span><b>Closed</b><span class="d">The manager closes the ticket. You can then leave a review.</span></span></li>
+          </ol>
+          <div class="alert alert-warn" style="margin-top:18px"><span class="ic i-alert"></span><div><b>Resolution summary required.</b> A ticket can’t move to Resolved without one.</div></div>
+        </div>
+      </aside>
     </div>
   </form>
 </div>
 
-<app-message-dialog *ngIf="successMessage" [message]="successMessage" buttonText="Ok" (ok)="onSuccessOk()"></app-message-dialog>
+<!-- Success popup (SRS) -->
+<div *ngIf="successMessage" class="overlay">
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-ok">
+    <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-ok">{{ successMessage }}</h2><p class="modal-s">{{ editId ? 'Your changes were saved.' : 'Your ticket is Open. A manager will assign an agent shortly.' }}</p></div></div>
+    <div class="modal-b"></div>
+    <div class="modal-f"><button type="button" class="btn btn-pri" (click)="closeSuccess()">Ok</button></div>
+  </div>
+</div>

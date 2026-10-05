@@ -1,11 +1,11 @@
-/** Credentials sent to POST /api/login. */
+// Sent to POST /api/login
 export interface Login {
   email: string;
   password: string;
 }
 
-/** Body returned by POST /api/login (backend LoginDTO). */
-export interface LoginResponse {
+// Returned by POST /api/login (backend LoginDTO)
+export interface LoginDTO {
   token: string;
   username: string;
   userRole: string;

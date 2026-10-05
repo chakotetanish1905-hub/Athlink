@@ -1,22 +1,40 @@
-<nav class="navbar" id="managerNavbar">
-  <a class="brand" routerLink="/home">SupportSphere</a>
-  <span class="user-badge" id="userBadge">{{ authService.username$ | async }} / {{ authService.userRole$ | async }}</span>
-  <ul class="nav-links">
-    <li><a id="homeLink" routerLink="/home" routerLinkActive="active">Home</a></li>
-    <li><a id="dashboardLink" routerLink="/manager/dashboard" routerLinkActive="active">Dashboard</a></li>
-    <li class="has-dropdown">
-      <a id="supportAgentsLink" tabindex="0">Support Agents</a>
-      <ul class="dropdown">
-        <li><a id="addSupportAgentLink" routerLink="/manager/agents/add">Add Support Agent</a></li>
-        <li><a id="viewSupportAgentsLink" routerLink="/manager/agents">View Support Agents</a></li>
-      </ul>
-    </li>
-    <li><a id="ticketsLink" routerLink="/manager/tickets" routerLinkActive="active">Tickets</a></li>
-    <li><a id="feedbacksLink" routerLink="/manager/feedbacks" routerLinkActive="active">Feedbacks</a></li>
-    <li><button type="button" id="logoutButton" class="logout-btn" (click)="showLogoutConfirm = true">Logout</button></li>
-  </ul>
-</nav>
+<aside class="sb" aria-label="Primary navigation">
+  <div class="sb-top">
+    <a class="brand" routerLink="/home" aria-label="SupportSphere home"><span class="brand-mark"></span><span class="brand-name">SupportSphere</span></a>
+    <button class="icon-btn sm sb-collapse" type="button" (click)="toggleSidebar.emit()" aria-label="Toggle sidebar" title="Toggle sidebar"><span class="ic i-panel"></span></button>
+  </div>
 
-<app-confirm-dialog *ngIf="showLogoutConfirm"
-  message="Are you sure you want to logout?" confirmText="Yes, Logout" confirmClass="btn-success"
-  (confirm)="confirmLogout()" (cancel)="showLogoutConfirm = false"></app-confirm-dialog>
+  <nav class="sb-nav">
+    <div class="grp">
+      <div class="grp-h">Main</div>
+      <a class="nav-item" [class.on]="isActive('home')" routerLink="/home" title="Home"><span class="ic i-home" aria-hidden="true"></span><span class="lbl">Home</span></a>
+      <a class="nav-item" [class.on]="isActive('dashboard')" routerLink="/manager/dashboard" title="Dashboard"><span class="ic i-grid" aria-hidden="true"></span><span class="lbl">Dashboard</span></a>
+      <a class="nav-item" [class.on]="isActive('tickets')" routerLink="/manager/tickets" title="Tickets"><span class="ic i-ticket" aria-hidden="true"></span><span class="lbl">Tickets</span></a>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Support Agents</div>
+      <a class="nav-item" [class.on]="isActive('addAgent')" routerLink="/manager/agents/add" title="Add Support Agent"><span class="ic i-plus" aria-hidden="true"></span><span class="lbl">Add Support Agent</span></a>
+      <a class="nav-item" [class.on]="isActive('agents')" routerLink="/manager/agents" title="View Support Agents"><span class="ic i-users" aria-hidden="true"></span><span class="lbl">View Support Agents</span></a>
+    </div>
+    <div class="grp">
+      <div class="grp-h">Insights</div>
+      <a class="nav-item" [class.on]="isActive('feedback')" routerLink="/manager/feedbacks" title="Feedbacks"><span class="ic i-message" aria-hidden="true"></span><span class="lbl">Feedbacks</span></a>
+    </div>
+  </nav>
+
+  <div class="sb-bottom">
+    <button class="nav-item" type="button" (click)="logout.emit()" title="Log out"><span class="ic i-logout" aria-hidden="true"></span><span class="lbl">Log out</span></button>
+    <div class="sb-user">
+      <span class="avatar av-sm" [style.background]="ui.avatar(authService.getUsername()).bg" [style.color]="ui.avatar(authService.getUsername()).fg">{{ ui.avatar(authService.getUsername()).ini }}</span>
+      <div class="who"><div class="nm">{{ authService.getUsername() }}</div><div class="rl">Manager</div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile bottom navigation -->
+<nav class="bottomnav" aria-label="Primary">
+  <a class="bn-item" [class.on]="isActive('dashboard')" routerLink="/manager/dashboard"><span class="ic i-grid ic-20"></span>Dashboard</a>
+  <a class="bn-item" [class.on]="isActive('tickets')" routerLink="/manager/tickets"><span class="ic i-ticket ic-20"></span>Tickets</a>
+  <a class="bn-item" [class.on]="isActive('agents') || isActive('addAgent')" routerLink="/manager/agents"><span class="ic i-users ic-20"></span>Agents</a>
+  <a class="bn-item" [class.on]="isActive('feedback')" routerLink="/manager/feedbacks"><span class="ic i-message ic-20"></span>Feedback</a>
+</nav>

@@ -1,13 +1,8 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
-interface ErrorInfo {
-  title: string;
-  message: string;
-}
-
-/** Custom error page (SRS: "Something Went Wrong"), with specific text for common HTTP codes. */
+// Custom error pages: 404 for unknown pages, and "Something Went Wrong" (/error) for everything else.
 @Component({
   selector: 'app-error',
   templateUrl: './error.component.html',
@@ -15,23 +10,25 @@ interface ErrorInfo {
 })
 export class ErrorComponent implements OnInit {
 
-  private static readonly ERRORS: { [code: string]: ErrorInfo } = {
-    '401': { title: 'Session Expired', message: 'Please login again.' },
-    '403': { title: 'Access Denied', message: 'You are not authorized to view this page.' },
-    '404': { title: 'Page Not Found', message: 'The page or resource you requested could not be found.' },
-    '500': { title: 'Something Went Wrong', message: "We're sorry, but an error occurred. Please try again later." }
-  };
-
   code = '500';
-  info: ErrorInfo = ErrorComponent.ERRORS['500'];
 
-  constructor(private readonly route: ActivatedRoute, public readonly authService: AuthService) {}
+  constructor(private route: ActivatedRoute, private router: Router, public authService: AuthService) {}
 
   ngOnInit(): void {
-    this.route.paramMap.subscribe(params => {
-      const requested = params.get('code') ?? this.route.snapshot.data['code'] ?? '500';
-      this.code = ErrorComponent.ERRORS[requested] ? requested : '500';
-      this.info = ErrorComponent.ERRORS[this.code];
-    });
+    const codeParam = this.route.snapshot.queryParamMap.get('code');
+    if (codeParam) {
+      this.code = codeParam;
+    } else if (!this.router.url.startsWith('/error')) {
+      this.code = '404';   // the "**" route: the page does not exist
+    }
+  }
+
+  get homeLink(): string {
+    if (!this.authService.isLoggedIn()) { return '/login'; }
+    return this.authService.isManager() ? '/manager/dashboard' : '/home';
+  }
+
+  goBack(): void {
+    history.back();
   }
 }

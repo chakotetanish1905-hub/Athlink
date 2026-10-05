@@ -1,8 +1,74 @@
-<ng-container *ngIf="authService.loggedIn$ | async">
-  <app-managernav *ngIf="(authService.userRole$ | async) === 'Manager'"></app-managernav>
-  <app-clientnav *ngIf="(authService.userRole$ | async) === 'Client'"></app-clientnav>
-</ng-container>
-<main>
-  <router-outlet></router-outlet>
-</main>
-<app-toast></app-toast>
+<!-- Login / signup (and errors before login): full-screen pages -->
+<router-outlet *ngIf="!showShell"></router-outlet>
+
+<!-- Logged-in layout -->
+<div *ngIf="showShell" class="app" [class.t]="sidebarToggled">
+
+  <!-- Role-based navigation (SRS: managernav / clientnav) -->
+  <app-managernav *ngIf="role === 'Manager'" (toggleSidebar)="toggleSidebar()" (logout)="askLogout()"></app-managernav>
+  <app-clientnav *ngIf="role === 'Client'" (toggleSidebar)="toggleSidebar()" (logout)="askLogout()"></app-clientnav>
+  <button *ngIf="sidebarToggled" class="sb-scrim" type="button" aria-label="Close navigation" (click)="toggleSidebar()"></button>
+
+  <div class="main-col">
+    <header class="topbar">
+      <a class="tb-brand brand" routerLink="/home"><span class="brand-mark"></span><span class="brand-name">SupportSphere</span></a>
+
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <ng-container *ngFor="let c of crumbs; let i = index">
+          <span *ngIf="i > 0" class="sep" aria-hidden="true">/</span>
+          <a *ngIf="c.link" class="crumb" [routerLink]="c.link">{{ c.label }}</a>
+          <span *ngIf="!c.link" class="crumb cur" aria-current="page">{{ c.label }}</span>
+        </ng-container>
+      </nav>
+
+      <form class="tb-search" role="search" (ngSubmit)="search()">
+        <span class="ic i-search ic-14" aria-hidden="true"></span>
+        <label class="sr-only" for="gsearch">Search tickets</label>
+        <input id="gsearch" name="gsearch" type="search" [(ngModel)]="searchText"
+               [placeholder]="role === 'Manager' ? 'Search tickets…' : 'Search your tickets…'">
+      </form>
+
+      <div class="tb-right">
+        <div class="wrap">
+          <button class="prof-btn" type="button" aria-haspopup="menu" [attr.aria-expanded]="profileOpen"
+                  (click)="profileOpen = !profileOpen" [attr.aria-label]="'Account menu for ' + username">
+            <span class="avatar" [style.background]="ui.avatar(username).bg" [style.color]="ui.avatar(username).fg">{{ ui.avatar(username).ini }}</span>
+            <span class="who"><span class="nm" style="display:block">{{ username }}</span><span class="rl" style="display:block">{{ role }}</span></span>
+            <span class="ic i-chev-down ic-14 chev" style="color: var(--tx3)"></span>
+          </button>
+          <div *ngIf="profileOpen" class="pop" role="menu" aria-label="Account">
+            <div class="pop-h">
+              <div class="row">
+                <span class="avatar" [style.background]="ui.avatar(username).bg" [style.color]="ui.avatar(username).fg">{{ ui.avatar(username).ini }}</span>
+                <div style="min-width:0"><div style="font-weight:600;font-size:14px">{{ username }}</div><div class="muted trunc" style="font-size:12px">Signed in</div></div>
+              </div>
+              <span class="chip chip-pri" style="margin-top:10px">{{ role }}</span>
+            </div>
+            <button type="button" role="menuitem" class="menu-item danger" (click)="askLogout()"><span class="ic i-logout"></span>Log out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content" id="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+
+  <button *ngIf="profileOpen" class="click-catch" type="button" tabindex="-1" aria-label="Close menu" (click)="profileOpen = false"></button>
+</div>
+
+<!-- Logout confirmation (SRS) -->
+<div *ngIf="showLogoutDialog" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="showLogoutDialog = false"></button>
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-lo">
+    <div class="modal-h"><span class="m-ic neutral"><span class="ic i-logout ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-lo">Log out of SupportSphere?</h2><p class="modal-s">You’ll need to sign in again to access your workspace.</p></div>
+    </div>
+    <div class="modal-b"></div>
+    <div class="modal-f">
+      <button type="button" class="btn btn-sec" (click)="showLogoutDialog = false">Cancel</button>
+      <button type="button" class="btn btn-dark" (click)="logout()">Yes, Logout</button>
+    </div>
+  </div>
+</div>

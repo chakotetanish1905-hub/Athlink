@@ -4,5 +4,5 @@ export interface User {
   password: string;
   username: string;
   mobileNumber: string;
-  userRole: string;
+  userRole: string;          // 'Manager' | 'Client'
 }

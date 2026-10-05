@@ -1,85 +1,204 @@
-<div class="page details-page">
-  <div class="card">
-    <div class="details-header">
-      <h2>Ticket Details</h2>
-      <button type="button" id="backButton" class="btn btn-info btn-sm" (click)="goBack()">← Back</button>
-    </div>
+<div class="page">
+  <a class="back" [routerLink]="backLink"><span class="ic i-arrow-left ic-14"></span>Back to {{ isManager ? 'Tickets' : 'My Tickets' }}</a>
 
-    <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <!-- Loading skeleton -->
+  <div *ngIf="loading" class="det-grid">
+    <div class="det-col"><div class="card card-b"><div class="sk sk-l" style="width:30%;margin-bottom:16px"></div><div class="sk sk-l" style="margin-bottom:10px" *ngFor="let x of [1,2,3,4]"></div></div><div class="card card-b"><div class="sk" style="height:140px"></div></div></div>
+    <div class="det-col"><div class="card card-b"><div class="sk" style="height:120px"></div></div><div class="card card-b"><div class="sk" style="height:160px"></div></div></div>
+  </div>
 
-    <ng-container *ngIf="ticket">
-      <section class="details-section">
-        <div class="ticket-card" id="ticketCard">
-          <h3 class="ticket-num">Ticket Num:{{ ticket.ticketId }}</h3>
-          <h3>{{ ticket.title }}</h3>
-          <p><strong>Description:</strong> {{ ticket.description }}</p>
-          <p><strong>Issue Category:</strong> {{ ticket.issueCategory }}</p>
-          <p><strong>Priority:</strong> {{ ticket.priority }}</p>
-          <p><strong>Status:</strong> {{ ticket.status }}</p>
-          <p><strong>Created Date:</strong> {{ ticket.createdDate | date: 'yyyy-MM-dd' }}</p>
-          <p><strong>Resolution Date:</strong>
-            {{ ticket.resolutionDate ? (ticket.resolutionDate | date: 'yyyy-MM-dd') : 'Not Resolved' }}</p>
-        </div>
+  <!-- Not found / error -->
+  <div *ngIf="!loading && notFound" class="err-page">
+    <div class="err-ic"><span class="ic i-compass ic-28"></span></div><span class="err-code">Error 404</span>
+    <h1 class="err-t">Ticket not found</h1><p class="err-d">This ticket doesn’t exist or isn’t available for your account.</p>
+    <div class="err-actions"><a class="btn btn-pri" [routerLink]="backLink">Back to tickets</a></div>
+  </div>
+  <div *ngIf="errorMessage" class="err-page" role="alert">
+    <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+    <h1 class="err-t">Unable to load this ticket</h1><p class="err-d">{{ errorMessage }}</p>
+    <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadTicket()"><span class="ic i-refresh"></span>Retry</button></div>
+  </div>
 
-        <div class="modal-actions">
-          <button *ngIf="!isResolvedOrClosed" type="button" id="provideSummaryButton" class="btn btn-info"
-                  (click)="openSummary()">Provide Summary</button>
-          <button *ngIf="isResolvedOrClosed" type="button" id="viewSummaryButton" class="btn btn-info"
-                  (click)="showViewSummary = true">View Summary</button>
-          <button type="button" id="markResolvedButton" class="btn btn-success" [disabled]="isResolvedOrClosed"
-                  (click)="markAsResolved()">Mark as Resolved</button>
-        </div>
-      </section>
+  <ng-container *ngIf="!loading && ticket as t">
+    <div class="det-head"><div style="min-width:0">
+      <h1 class="det-title">{{ t.title }}</h1>
+      <div class="det-meta">
+        <span class="tid">#{{ t.ticketId }}</span><span class="sep"></span>
+        <span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ t.priority }} priority</span><span class="sep"></span>
+        <span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span><span class="sep"></span>
+        <span>{{ t.issueCategory }}</span><span class="sep"></span>
+        <span>Opened {{ ui.formatDate(t.createdDate) }}</span>
+      </div>
+    </div></div>
 
-      <div class="arrow-down" *ngIf="ticket.supportAgent"></div>
+    <div class="det-grid">
+      <div class="det-col">
+        <section class="card" aria-labelledby="h-desc">
+          <div class="card-h"><h2 class="card-t" id="h-desc">Issue description</h2></div>
+          <div class="card-b"><p class="desc">{{ t.description }}</p></div>
+        </section>
 
-      <section class="details-section" *ngIf="ticket.supportAgent as agent">
-        <h3 class="center">Assigned Agent</h3>
-        <div class="agent-card" id="assignedAgentCard">
-          <img *ngIf="agent.profile; else initials" class="avatar" [src]="agent.profile" [alt]="agent.name" />
-          <ng-template #initials><span class="avatar avatar-placeholder">{{ agent.name.charAt(0) | uppercase }}</span></ng-template>
-          <div>
-            <p><strong>Name:</strong> {{ agent.name }}</p>
-            <p><strong>Email:</strong> {{ agent.email }}</p>
-            <p><strong>Phone:</strong> {{ agent.phone }}</p>
-            <p><strong>Expertise:</strong> {{ agent.expertise }}</p>
-            <p><strong>Status:</strong> {{ agent.status }}</p>
+        <section class="card" aria-labelledby="h-res">
+          <div class="card-h"><div><h2 class="card-t" id="h-res">Resolution</h2><p class="card-s">A resolution summary is required before a ticket can be marked Resolved.</p></div></div>
+          <div class="card-b">
+            <div *ngIf="t.resolutionSummary" class="res-box">
+              <div class="label" style="margin-bottom:6px">Resolution summary</div>
+              <p class="desc" style="font-size:14px">{{ t.resolutionSummary }}</p>
+              <div class="row" style="margin-top:14px;gap:16px;flex-wrap:wrap;font-size:13px">
+                <span class="sat" [ngClass]="ui.satisfaction(t).cls"><span class="ic ic-14" [ngClass]="ui.satisfaction(t).icon"></span>{{ ui.satisfaction(t).label }}</span>
+                <span class="muted">Resolution date: <b style="color:var(--tx)">{{ ui.formatDate(t.resolutionDate) }}</b></span>
+              </div>
+            </div>
+            <div *ngIf="!t.resolutionSummary" class="res-empty"><span class="ic i-file ic-18"></span>
+              <div><b style="color:var(--tx);display:block">No resolution summary yet</b>
+                {{ canResolve ? 'Once the issue is fixed, add a summary and your satisfaction status, then mark the ticket resolved.'
+                  : (isManager ? 'The client adds the resolution summary when they confirm the fix.' : 'You’ll add a summary once an agent has worked on the ticket.') }}</div>
+            </div>
           </div>
+        </section>
+
+        <section class="card" aria-labelledby="h-tl">
+          <div class="card-h"><h2 class="card-t" id="h-tl">Ticket timeline</h2></div>
+          <div class="card-b"><ol class="timeline">
+            <li *ngFor="let step of timeline" class="tl" [class.done]="step.done" [class.ok]="step.done && step.success">
+              <span class="tl-dot"><span class="ic ic-12" [ngClass]="step.done ? 'i-check' : 'i-circle'"></span></span>
+              <div><div class="tt">{{ step.title }}</div><div class="td">{{ step.text }}</div></div>
+            </li>
+          </ol></div>
+        </section>
+      </div>
+
+      <div class="det-col">
+        <section class="card" aria-labelledby="h-act">
+          <div class="card-h"><h2 class="card-t" id="h-act">Actions</h2><span class="chip">{{ isManager ? 'Manager' : 'Client' }}</span></div>
+          <div class="card-b actions">
+            <!-- Manager -->
+            <button *ngIf="canAssign" type="button" class="btn btn-pri" (click)="assignAgent()"><span class="ic i-user"></span>Assign agent</button>
+            <div *ngIf="isManager && isActive && t.supportAgent" class="alert alert-info"><span class="ic i-check"></span><div><b>Agent assigned.</b> The client adds a resolution summary and marks the ticket resolved once the fix is confirmed.</div></div>
+            <ng-container *ngIf="canClose">
+              <button type="button" class="btn btn-pri" (click)="closeTicket()"><span class="ic i-lock"></span>Close ticket</button>
+              <p class="act-note"><span class="ic i-info ic-14"></span>The client marked this ticket as resolved. Closing it archives the ticket.</p>
+            </ng-container>
+
+            <!-- Client -->
+            <ng-container *ngIf="canEdit">
+              <a class="btn btn-sec" [routerLink]="['/client/tickets/edit', t.ticketId]"><span class="ic i-edit"></span>Edit ticket</a>
+              <button type="button" class="btn btn-danger-soft" (click)="showDelete = true"><span class="ic i-trash"></span>Delete ticket</button>
+              <p class="act-note"><span class="ic i-info ic-14"></span>You can edit or delete this ticket until a manager assigns an agent.</p>
+            </ng-container>
+            <ng-container *ngIf="canResolve">
+              <button type="button" class="btn btn-sec" (click)="openSummaryForm()"><span class="ic i-file"></span>{{ t.resolutionSummary ? 'Edit summary' : 'Provide Summary' }}</button>
+              <button type="button" class="btn btn-pri" (click)="markResolved()"><span class="ic i-circle-check"></span>Mark as Resolved</button>
+            </ng-container>
+
+            <div *ngIf="actionError" class="alert alert-err" role="alert"><span class="ic i-alert-circle"></span><div>{{ actionError }}</div></div>
+
+            <button *ngIf="ui.isDone(t) && t.resolutionSummary" type="button" class="btn btn-sec" (click)="showSummary = true"><span class="ic i-eye"></span>View Summary</button>
+            <a *ngIf="canReview" class="btn btn-pri" routerLink="/client/feedback/add" [queryParams]="{ ticketId: t.ticketId }"><span class="ic i-star"></span>Write a Review</a>
+            <span *ngIf="!isManager && ui.isDone(t) && reviewed" class="chip chip-ok" style="align-self:flex-start"><span class="ic i-check ic-12"></span>Review submitted</span>
+            <p *ngIf="isManager && t.status === 'Closed'" class="act-note"><span class="ic i-lock ic-14"></span>This ticket is closed. No further actions are available.</p>
+            <p *ngIf="!isManager && !canEdit && !canResolve && !ui.isDone(t)" class="act-note"><span class="ic i-info ic-14"></span>A manager will assign an agent soon.</p>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="h-agent">
+          <div class="card-h"><h2 class="card-t" id="h-agent">Assigned support agent</h2></div>
+          <div class="card-b">
+            <ng-container *ngIf="t.supportAgent as a">
+              <div class="row" style="gap:12px;align-items:flex-start">
+                <span class="avatar av-lg" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+                <div class="grow"><div style="font-weight:600">{{ a.name }}</div><div class="muted" style="font-size:13px">{{ a.expertise }} · {{ a.experience }}</div>
+                  <div style="margin-top:4px"><span class="avail" [class.on]="a.status === 'Available'" [class.off]="a.status !== 'Available'">{{ a.status }}</span></div></div>
+              </div>
+              <dl class="kv" style="margin:16px 0 0"><dt>Email</dt><dd>{{ a.email }}</dd><dt>Phone</dt><dd>{{ a.phone }}</dd><dt>Shift</dt><dd>{{ a.shiftTiming }}</dd></dl>
+            </ng-container>
+            <div *ngIf="!t.supportAgent" class="res-empty"><span class="ic i-headset ic-18"></span>
+              <div><b style="color:var(--tx);display:block">Not assigned yet</b>{{ isManager ? 'Assign an available agent whose expertise matches this category.' : 'A manager will assign an agent soon. You can still edit or delete the ticket.' }}</div></div>
+          </div>
+        </section>
+
+        <section *ngIf="isManager" class="card" aria-labelledby="h-cust">
+          <div class="card-h"><h2 class="card-t" id="h-cust">Customer</h2></div>
+          <div class="card-b">
+            <div class="row" style="gap:12px"><span class="avatar av-lg" [style.background]="ui.avatar(t.user?.username).bg" [style.color]="ui.avatar(t.user?.username).fg">{{ ui.avatar(t.user?.username).ini }}</span>
+              <div class="grow"><div style="font-weight:600">{{ t.user?.username }}</div><div class="muted" style="font-size:13px">Client · User #{{ t.user?.userId }}</div></div></div>
+            <dl class="kv" style="margin:16px 0 0"><dt>Email</dt><dd>{{ t.user?.email }}</dd><dt>Mobile</dt><dd>{{ t.user?.mobileNumber }}</dd></dl>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="h-props">
+          <div class="card-h"><h2 class="card-t" id="h-props">Details</h2></div>
+          <div class="card-b"><dl class="kv" style="margin:0">
+            <dt>Ticket ID</dt><dd class="mono">{{ t.ticketId }}</dd><dt>Category</dt><dd>{{ t.issueCategory }}</dd><dt>Priority</dt><dd>{{ t.priority }}</dd>
+            <dt>Status</dt><dd>{{ t.status }}</dd><dt>Created</dt><dd>{{ ui.formatDate(t.createdDate) }}</dd><dt>Resolved</dt><dd>{{ ui.formatDate(t.resolutionDate) }}</dd>
+            <dt>Satisfaction</dt><dd>{{ ui.satisfaction(t).label }}</dd>
+          </dl></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Provide summary dialog -->
+    <div *ngIf="showSummaryForm" class="overlay">
+      <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="showSummaryForm = false"></button>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-sum">
+        <div class="modal-h"><span class="m-ic pri"><span class="ic i-file ic-20"></span></span>
+          <div class="grow"><h2 class="modal-t" id="mt-sum">Provide resolution summary</h2><p class="modal-s"><span class="tid">#{{ t.ticketId }}</span> · {{ t.title }}</p></div>
+          <button type="button" class="icon-btn sm" (click)="showSummaryForm = false" aria-label="Close"><span class="ic i-x"></span></button></div>
+        <div class="modal-b">
+          <div class="field" style="margin-bottom:16px">
+            <label class="label" for="sum-t">Resolution summary <span class="req" aria-hidden="true">*</span></label>
+            <textarea id="sum-t" name="summary" class="textarea" style="min-height:120px" placeholder="What fixed the issue? Include anything the team should know." [(ngModel)]="summaryText"></textarea>
+          </div>
+          <fieldset class="field" style="border:0;padding:0;margin:0">
+            <legend class="label" style="margin-bottom:8px">Are you satisfied with the resolution? <span class="req" aria-hidden="true">*</span></legend>
+            <div class="opt-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+              <label class="opt" [class.sel]="summarySatisfied === 'yes'" style="align-items:center"><input class="sr-only" type="radio" name="sat" value="yes" [(ngModel)]="summarySatisfied"><span class="radio-dot" style="margin-top:0"></span><span class="sat yes"><span class="ic i-smile"></span>Satisfied</span></label>
+              <label class="opt" [class.sel]="summarySatisfied === 'no'" style="align-items:center"><input class="sr-only" type="radio" name="sat" value="no" [(ngModel)]="summarySatisfied"><span class="radio-dot" style="margin-top:0"></span><span class="sat no"><span class="ic i-frown"></span>Not satisfied</span></label>
+            </div>
+          </fieldset>
+          <div *ngIf="summaryError" class="alert alert-err" role="alert" style="margin-top:14px"><span class="ic i-alert-circle"></span><div>Please provide a resolution summary and select satisfaction status.</div></div>
         </div>
-      </section>
-    </ng-container>
-  </div>
+        <div class="modal-f"><button type="button" class="btn btn-sec" (click)="showSummaryForm = false">Cancel</button><button type="button" class="btn btn-pri" (click)="submitSummary()">Submit</button></div>
+      </div>
+    </div>
+
+    <!-- Confirm summary dialog -->
+    <div *ngIf="showConfirmSummary" class="overlay">
+      <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-cs">
+        <div class="modal-h"><span class="m-ic pri"><span class="ic i-circle-check ic-20"></span></span>
+          <div><h2 class="modal-t" id="mt-cs">Save resolution summary?</h2><p class="modal-s">This adds your summary and satisfaction status to <span class="tid">#{{ t.ticketId }}</span>. You can then mark the ticket as resolved.</p></div></div>
+        <div class="modal-b"><div class="res-box" style="font-size:13px">{{ summaryText }}</div></div>
+        <div class="modal-f"><button type="button" class="btn btn-sec" (click)="showConfirmSummary = false">Cancel</button><button type="button" class="btn btn-pri" (click)="confirmSummary()">Yes! Confirm</button></div>
+      </div>
+    </div>
+
+    <!-- View summary dialog -->
+    <div *ngIf="showSummary" class="overlay">
+      <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="showSummary = false"></button>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-vs">
+        <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+          <div class="grow"><h2 class="modal-t" id="mt-vs">Resolution summary</h2><p class="modal-s"><span class="tid">#{{ t.ticketId }}</span> · {{ t.title }}</p></div>
+          <button type="button" class="icon-btn sm" (click)="showSummary = false" aria-label="Close"><span class="ic i-x"></span></button></div>
+        <div class="modal-b"><div class="res-box"><p class="desc" style="font-size:14px">{{ t.resolutionSummary }}</p></div>
+          <dl class="kv" style="margin:16px 0 0"><dt>Satisfaction</dt><dd><span class="sat" [ngClass]="ui.satisfaction(t).cls"><span class="ic ic-14" [ngClass]="ui.satisfaction(t).icon"></span>{{ ui.satisfaction(t).label }}</span></dd>
+            <dt>Resolved on</dt><dd>{{ ui.formatDate(t.resolutionDate) }}</dd><dt>Agent</dt><dd>{{ t.supportAgent ? t.supportAgent.name + ' · ' + t.supportAgent.expertise : 'Not assigned' }}</dd></dl></div>
+        <div class="modal-f"><button type="button" class="btn btn-sec" (click)="showSummary = false">Close</button></div>
+      </div>
+    </div>
+
+    <!-- Delete dialog -->
+    <div *ngIf="showDelete" class="overlay">
+      <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="showDelete = false"></button>
+      <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-delt">
+        <div class="modal-h"><span class="m-ic danger"><span class="ic i-trash ic-20"></span></span><div><h2 class="modal-t" id="mt-delt">Delete ticket?</h2><p class="modal-s">Are you sure you want to delete this ticket?</p></div></div>
+        <div class="modal-b"><div class="mini-t"><span class="tid">#{{ t.ticketId }}</span><b>{{ t.title }}</b></div><p class="muted" style="font-size:13px;margin-top:10px">This permanently removes the ticket. It can’t be undone.</p></div>
+        <div class="modal-f"><button type="button" class="btn btn-sec" (click)="showDelete = false">Cancel</button><button type="button" class="btn btn-danger" (click)="confirmDelete()">Yes, Delete</button></div>
+      </div>
+    </div>
+  </ng-container>
 </div>
 
-<!-- Provide Resolution Summary -->
-<div class="modal-backdrop" *ngIf="showSummaryModal">
-  <div class="modal-box" role="dialog" aria-modal="true">
-    <button type="button" class="modal-close" aria-label="Close" (click)="showSummaryModal = false">×</button>
-    <h3>Provide Resolution Summary</h3>
-    <label for="resolutionSummary" class="sr-only">Resolution Summary *</label>
-    <textarea id="resolutionSummary" class="form-control" placeholder="Resolution Summary..." maxlength="2000"
-              [(ngModel)]="summaryText"></textarea>
-    <div class="radio-row">
-      <label><input type="radio" id="satisfied" name="satisfaction" value="satisfied" [(ngModel)]="satisfaction" /> 😊 Satisfied</label>
-      <label><input type="radio" id="notSatisfied" name="satisfaction" value="notSatisfied" [(ngModel)]="satisfaction" /> 😞 Not Satisfied</label>
-    </div>
-    <div class="modal-actions">
-      <button type="button" id="submitSummaryButton" class="btn btn-grey" (click)="submitSummary()">Submit</button>
-    </div>
-  </div>
-</div>
-
-<app-confirm-dialog *ngIf="showConfirmSummary" message="Are you sure you want to submit this summary?"
-  confirmText="Yes! Confirm" confirmClass="btn-grey" cancelText="Cancel"
-  (confirm)="confirmSummary()" (cancel)="showConfirmSummary = false"></app-confirm-dialog>
-
-<!-- View Resolution Summary -->
-<div class="modal-backdrop" *ngIf="showViewSummary && ticket">
-  <div class="modal-box" role="dialog" aria-modal="true">
-    <button type="button" class="modal-close" aria-label="Close" (click)="showViewSummary = false">×</button>
-    <h3>View Resolution Summary</h3>
-    <textarea class="form-control" readonly>{{ ticket.resolutionSummary || 'No summary provided.' }}</textarea>
-    <p class="center"><strong>Satisfaction:</strong>
-      {{ ticket.satisfied === true ? '😊 Satisfied' : ticket.satisfied === false ? '😞 Not Satisfied' : 'Not provided' }}</p>
-  </div>
+<div class="toasts" role="status" aria-live="polite">
+  <div *ngIf="toastTitle" class="toast ok"><span class="t-ic"><span class="ic i-check ic-14"></span></span><div class="grow"><div class="tt">{{ toastTitle }}</div></div>
+    <button type="button" class="icon-btn sm" style="margin:-4px -4px 0 0;width:26px;height:26px" (click)="toastTitle = ''" aria-label="Dismiss notification"><span class="ic i-x ic-14"></span></button></div>
 </div>

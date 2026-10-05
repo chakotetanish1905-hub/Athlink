@@ -1,13 +1,20 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { TICKET_STATUS } from '../../constants/constant';
 import { Ticket } from '../../models/ticket.model';
-import { ErrorHandlerService } from '../../services/error-handler.service';
-import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
+import { FeedbackService } from '../../services/feedback.service';
 import { TicketService } from '../../services/ticket.service';
+import { UI } from '../ui-helpers';
 
-/** Client: ticket + assigned agent, resolution summary and "Mark as Resolved". */
+interface TimelineStep {
+  title: string;
+  text: string;
+  done: boolean;
+  success: boolean;
+}
+
+// Ticket details for both roles.
+// Client: GET /api/ticket/{id}. Manager: the SRS allows GET /api/ticket only, so the ticket is found in that list.
 @Component({
   selector: 'app-ticket-details',
   templateUrl: './ticket-details.component.html',
@@ -15,93 +22,177 @@ import { TicketService } from '../../services/ticket.service';
 })
 export class TicketDetailsComponent implements OnInit {
 
+  ui = UI;
+  isManager = false;
+  ticketId = 0;
   ticket: Ticket | null = null;
+  reviewed = false;
+  loading = true;
+  notFound = false;
   errorMessage = '';
+  actionError = '';
 
-  showSummaryModal = false;
+  // Dialogs
+  showSummaryForm = false;
   showConfirmSummary = false;
-  showViewSummary = false;
+  showSummary = false;
+  showDelete = false;
   summaryText = '';
-  satisfaction: 'satisfied' | 'notSatisfied' | '' = '';
+  summarySatisfied = '';    // 'yes' | 'no'
+  summaryError = false;
 
-  constructor(
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly ticketService: TicketService,
-    private readonly notification: NotificationService,
-    private readonly errorHandler: ErrorHandlerService
-  ) {}
+  toastTitle = '';
+
+  constructor(private route: ActivatedRoute, private router: Router, private ticketService: TicketService,
+              private feedbackService: FeedbackService, private authService: AuthService) {}
 
   ngOnInit(): void {
+    this.isManager = this.authService.isManager();
+    this.ticketId = Number(this.route.snapshot.paramMap.get('id'));
     this.loadTicket();
   }
 
-  get isResolvedOrClosed(): boolean {
-    return this.ticket?.status === TICKET_STATUS.RESOLVED || this.ticket?.status === TICKET_STATUS.CLOSED;
+  loadTicket(): void {
+    this.loading = true;
+    this.errorMessage = '';
+    if (this.isManager) {
+      this.ticketService.getAllTickets().subscribe({
+        next: (tickets) => {
+          this.ticket = tickets.find(t => t.ticketId === this.ticketId) || null;
+          this.notFound = this.ticket === null;
+          this.loading = false;
+        },
+        error: (error) => this.showLoadError(error)
+      });
+    } else {
+      this.ticketService.getTicketById(this.ticketId).subscribe({
+        next: (ticket) => {
+          this.ticket = ticket;
+          this.loading = false;
+        },
+        error: (error) => this.showLoadError(error)
+      });
+      this.feedbackService.getAllFeedbacksByUserId(this.authService.getUserId()).subscribe({
+        next: (feedbacks) => this.reviewed = feedbacks.some(f => f.ticket?.ticketId === this.ticketId),
+        error: () => this.reviewed = false
+      });
+    }
   }
 
-  openSummary(): void {
-    this.summaryText = this.ticket?.resolutionSummary ?? '';
-    this.satisfaction = this.ticket?.satisfied === true ? 'satisfied'
-      : this.ticket?.satisfied === false ? 'notSatisfied' : '';
-    this.showSummaryModal = true;
+  get backLink(): string {
+    return this.isManager ? '/manager/tickets' : '/client/tickets';
+  }
+
+  // ---------- which actions are shown ----------
+
+  get isActive(): boolean {
+    return !!this.ticket && (this.ticket.status === 'Open' || this.ticket.status === 'In Progress');
+  }
+
+  get canAssign(): boolean {
+    return this.isManager && this.ticket?.status === 'Open' && !this.ticket?.supportAgent;
+  }
+
+  get canClose(): boolean {
+    return this.isManager && this.ticket?.status === 'Resolved';
+  }
+
+  get canEdit(): boolean {
+    return !this.isManager && this.ticket?.status === 'Open' && !this.ticket?.supportAgent;
+  }
+
+  get canResolve(): boolean {
+    return !this.isManager && this.isActive && !!this.ticket?.supportAgent;
+  }
+
+  get canReview(): boolean {
+    return !this.isManager && !!this.ticket && UI.isDone(this.ticket) && !!this.ticket.supportAgent && !this.reviewed;
+  }
+
+  get timeline(): TimelineStep[] {
+    const t = this.ticket;
+    if (!t) { return []; }
+    const done = UI.isDone(t);
+    return [
+      { title: 'Ticket created', text: UI.formatDate(t.createdDate) + ' · by ' + (t.user?.username || 'client'), done: true, success: false },
+      { title: 'Agent assigned', text: t.supportAgent ? t.supportAgent.name + ' · ' + t.supportAgent.expertise : 'Waiting for a manager', done: !!t.supportAgent, success: false },
+      { title: 'Resolution summary added', text: t.resolutionSummary ? 'Satisfaction: ' + UI.satisfaction(t).label : 'Required before resolving', done: !!t.resolutionSummary, success: false },
+      { title: 'Resolved', text: t.resolutionDate ? UI.formatDate(t.resolutionDate) : 'Pending', done: done, success: true },
+      { title: 'Closed', text: t.status === 'Closed' ? 'Closed by manager' : 'Pending', done: t.status === 'Closed', success: true }
+    ];
+  }
+
+  // ---------- manager actions ----------
+
+  // The assign dialog lives on the tickets page; open it there for this ticket
+  assignAgent(): void {
+    this.router.navigate(['/manager/tickets'], { queryParams: { assign: this.ticketId } });
+  }
+
+  closeTicket(): void {
+    this.save({ ...this.ticket!, status: 'Closed' }, 'Ticket closed');
+  }
+
+  // ---------- client actions ----------
+
+  openSummaryForm(): void {
+    this.summaryText = this.ticket?.resolutionSummary || '';
+    this.summarySatisfied = this.ticket?.satisfied === true ? 'yes' : (this.ticket?.satisfied === false ? 'no' : '');
+    this.summaryError = false;
+    this.showSummaryForm = true;
   }
 
   submitSummary(): void {
-    if (!this.summaryText.trim() || !this.satisfaction) {
-      this.notification.error('Please provide a resolution summary and select satisfaction status.');
+    if (!this.summaryText.trim() || !this.summarySatisfied) {
+      this.summaryError = true;
       return;
     }
+    this.showSummaryForm = false;
     this.showConfirmSummary = true;
   }
 
   confirmSummary(): void {
     this.showConfirmSummary = false;
-    if (!this.ticket?.ticketId) {
+    const updated: Ticket = { ...this.ticket!, resolutionSummary: this.summaryText.trim(), satisfied: this.summarySatisfied === 'yes' };
+    this.save(updated, 'Resolution summary saved');
+  }
+
+  markResolved(): void {
+    if (!this.ticket?.resolutionSummary) {
+      this.actionError = 'Please provide resolution details before marking resolve.';
       return;
     }
-    const updated: Ticket = {
-      ...this.ticket,
-      resolutionSummary: this.summaryText.trim(),
-      satisfied: this.satisfaction === 'satisfied'
-    };
-    this.ticketService.updateTicket(this.ticket.ticketId, updated).subscribe({
-      next: () => {
-        this.showSummaryModal = false;
-        this.notification.success('Resolution summary saved.');
-        this.goBack();
+    this.save({ ...this.ticket, status: 'Resolved' }, 'Ticket marked as resolved');
+  }
+
+  confirmDelete(): void {
+    this.ticketService.deleteTicket(this.ticketId).subscribe({
+      next: () => this.router.navigate(['/client/tickets']),
+      error: (error) => {
+        this.showDelete = false;
+        this.actionError = UI.errorMessage(error, 'Could not delete the ticket.');
+      }
+    });
+  }
+
+  private save(updated: Ticket, message: string): void {
+    this.actionError = '';
+    this.ticketService.updateTicket(this.ticketId, updated).subscribe({
+      next: (saved) => {
+        this.ticket = saved;
+        this.toastTitle = message;
+        setTimeout(() => this.toastTitle = '', 4200);
       },
-      error: (err: HttpErrorResponse) => this.notification.error(this.errorHandler.getMessage(err))
+      error: (error) => this.actionError = UI.errorMessage(error, 'Could not update the ticket.')
     });
   }
 
-  markAsResolved(): void {
-    if (!this.ticket?.ticketId) {
-      return;
+  private showLoadError(error: any): void {
+    this.loading = false;
+    if (error.status === 404 || error.status === 403) {
+      this.notFound = true;
+    } else {
+      this.errorMessage = UI.errorMessage(error, 'Could not load this ticket.');
     }
-    if (!this.ticket.resolutionSummary || !this.ticket.resolutionSummary.trim()) {
-      this.notification.error('Please provide resolution details before marking resolve.');
-      return;
-    }
-    const updated: Ticket = { ...this.ticket, status: TICKET_STATUS.RESOLVED };
-    this.ticketService.updateTicket(this.ticket.ticketId, updated).subscribe({
-      next: ticket => {
-        this.ticket = ticket;
-        this.notification.success('Ticket marked as resolved.');
-      },
-      error: (err: HttpErrorResponse) => this.notification.error(this.errorHandler.getMessage(err))
-    });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/client/tickets']);
-  }
-
-  private loadTicket(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.ticketService.getTicketById(id).subscribe({
-      next: ticket => (this.ticket = ticket),
-      error: (err: HttpErrorResponse) => (this.errorMessage = this.errorHandler.getMessage(err))
-    });
   }
 }

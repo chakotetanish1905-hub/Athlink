@@ -1,39 +1,174 @@
 <div class="page">
-  <div class="card">
-    <h2 class="page-title dashboard-title">Dashboard</h2>
-
-    <div class="stats">
-      <div class="stat-card" id="happyClientsCard">
-        <h3>Happy Clients</h3>
-        <p class="stat-value" id="happyClientsCount">{{ happyClients }}</p>
-      </div>
-      <div class="stat-card" id="unhappyClientsCard">
-        <h3>Unhappy Clients</h3>
-        <p class="stat-value" id="unhappyClientsCount">{{ unhappyClients }}</p>
-      </div>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">{{ greeting }}, {{ firstName }}</h1>
+      <p class="page-sub">Here’s what’s happening with your support operations.</p>
     </div>
-
-    <h3 class="summary-title">Tickets Summary</h3>
-    <div class="table-wrapper">
-      <table class="data-table summary-table" id="ticketsSummaryTable">
-        <thead><tr><th>Ticket ID</th><th>Title</th><th>Status</th><th>Satisfaction</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let ticket of tickets">
-            <td>{{ ticket.ticketId }}</td>
-            <td>{{ ticket.title }}</td>
-            <td>{{ ticket.status }}</td>
-            <td>
-              <ng-container *ngIf="isFinished(ticket); else pending">
-                {{ ticket.satisfied === true ? '😊 Happy' : ticket.satisfied === false ? '😞 Unhappy' : 'Not Rated' }}
-              </ng-container>
-              <ng-template #pending><span class="italic text-muted">Pending Resolution</span></ng-template>
-            </td>
-          </tr>
-          <tr *ngIf="!loading && tickets.length === 0">
-            <td colspan="4" class="no-records">No Tickets Available</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="row">
+      <span class="chip"><span class="ic i-calendar ic-14"></span>{{ todayLabel }}</span>
+      <a class="btn btn-sec" routerLink="/manager/tickets">View all tickets<span class="ic i-arrow-right ic-14"></span></a>
     </div>
   </div>
+
+  <!-- Error state -->
+  <div *ngIf="errorMessage" class="card"><div class="err-page" role="alert">
+    <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+    <span class="err-code">Error</span>
+    <h1 class="err-t">Unable to load the dashboard</h1>
+    <p class="err-d">{{ errorMessage }}</p>
+    <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadData()"><span class="ic i-refresh"></span>Retry</button></div>
+  </div></div>
+
+  <!-- Loading skeleton -->
+  <ng-container *ngIf="loading">
+    <div class="kpi-grid">
+      <div class="card kpi" *ngFor="let x of [1,2,3,4,5]"><div class="kpi-top"><div class="sk sk-l" style="width:90px"></div><div class="sk" style="width:32px;height:32px;border-radius:8px"></div></div><div class="sk" style="width:70px;height:28px;margin-top:12px"></div><div class="sk sk-l" style="width:120px;margin-top:10px"></div></div>
+    </div>
+    <div class="grid-2"><div class="card card-b"><div class="sk sk-l" style="width:140px;margin-bottom:20px"></div><div class="sk" style="height:220px"></div></div><div class="card card-b"><div class="sk sk-l" style="width:160px;margin-bottom:20px"></div><div class="sk" style="height:10px;border-radius:999px;margin-bottom:20px"></div><div class="sk sk-l" style="margin:14px 0" *ngFor="let x of [1,2,3,4]"></div></div></div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading && !errorMessage">
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <a class="card kpi" routerLink="/manager/tickets">
+        <div class="kpi-top"><span class="kpi-lbl">Total Tickets</span><span class="kpi-ic k-pri"><span class="ic i-ticket"></span></span></div>
+        <div class="kpi-num">{{ tickets.length }}</div>
+        <div class="kpi-trend">
+          <span *ngIf="tickets.length > 0" class="tr" [class.up]="trendPercent > 0" [class.down]="trendPercent < 0" [class.flat]="trendPercent === 0">
+            <span class="ic ic-12" [class.i-trend-up]="trendPercent >= 0" [class.i-trend-down]="trendPercent < 0"></span>{{ trendPercent < 0 ? -trendPercent : trendPercent }}%
+          </span>
+          <span class="trunc">vs. prior 7 days</span>
+        </div>
+      </a>
+      <a class="card kpi" routerLink="/manager/tickets" [queryParams]="{ status: 'Open' }">
+        <div class="kpi-top"><span class="kpi-lbl">Open Tickets</span><span class="kpi-ic k-pri"><span class="ic i-circle"></span></span></div>
+        <div class="kpi-num">{{ openCount }}</div>
+        <div class="kpi-trend"><span class="trunc">{{ unassignedCount }} unassigned</span></div>
+      </a>
+      <a class="card kpi" routerLink="/manager/tickets" [queryParams]="{ status: 'In Progress' }">
+        <div class="kpi-top"><span class="kpi-lbl">In Progress</span><span class="kpi-ic k-warn"><span class="ic i-circle-half"></span></span></div>
+        <div class="kpi-num">{{ inProgressCount }}</div>
+        <div class="kpi-trend"><span class="trunc">Being worked by agents</span></div>
+      </a>
+      <a class="card kpi" routerLink="/manager/tickets" [queryParams]="{ status: 'Resolved' }">
+        <div class="kpi-top"><span class="kpi-lbl">Resolved Tickets</span><span class="kpi-ic k-ok"><span class="ic i-circle-check"></span></span></div>
+        <div class="kpi-num">{{ resolvedCount + closedCount }}</div>
+        <div class="kpi-trend"><span class="trunc">{{ resolvedCount }} resolved · {{ closedCount }} closed</span></div>
+      </a>
+      <a class="card kpi" routerLink="/manager/agents">
+        <div class="kpi-top"><span class="kpi-lbl">Support Agents</span><span class="kpi-ic"><span class="ic i-users"></span></span></div>
+        <div class="kpi-num">{{ agents.length }}</div>
+        <div class="kpi-trend"><span class="trunc">{{ availableAgents }} available now</span></div>
+      </a>
+    </div>
+
+    <div class="grid-2">
+      <!-- Activity chart -->
+      <section class="card" aria-labelledby="h-activity">
+        <div class="card-h flat">
+          <div><h2 class="card-t" id="h-activity">Ticket activity</h2><p class="card-s">Created vs. resolved · last 14 days</p></div>
+          <div class="legend"><span><i class="sw c1"></i>Created</span><span><i class="sw c2"></i>Resolved</span></div>
+        </div>
+        <div class="card-b">
+          <div class="chart" role="img" [attr.aria-label]="createdLast7 + ' tickets created in the last 7 days'">
+            <div class="y-axis"><span *ngFor="let y of yAxis">{{ y }}</span></div>
+            <div class="plot">
+              <div class="gridlines"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="bars">
+                <div class="bar-g" *ngFor="let d of chartDays">
+                  <div class="bar" [style.height]="barHeight(d.created)"></div>
+                  <div class="bar c2" [style.height]="barHeight(d.resolved)"></div>
+                  <span class="tip"><b>{{ d.fullDate }}</b><br>{{ d.created }} created · {{ d.resolved }} resolved</span>
+                </div>
+              </div>
+              <div class="x-lbls"><span *ngFor="let d of chartDays">{{ d.label }}</span></div>
+            </div>
+          </div>
+          <div class="row" style="gap:24px;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);font-size:13px;flex-wrap:wrap">
+            <span class="muted">Last 7 days</span>
+            <span><b>{{ createdLast7 }}</b>&nbsp;<span class="muted">created</span></span>
+            <span><b>{{ resolvedLast7 }}</b>&nbsp;<span class="muted">resolved</span></span>
+            <span><b>{{ unassignedCount }}</b>&nbsp;<span class="muted">open &amp; unassigned</span></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status distribution + satisfaction -->
+      <section class="card" aria-labelledby="h-dist">
+        <div class="card-h flat"><div><h2 class="card-t" id="h-dist">Ticket status</h2><p class="card-s">{{ tickets.length }} tickets in total</p></div></div>
+        <div class="card-b" style="padding-top:14px">
+          <div class="stack"><div class="seg" *ngFor="let r of statusRows" [style.width]="percent(r.count)" [style.background]="r.color"></div></div>
+          <div class="dist">
+            <div class="dist-row" *ngFor="let r of statusRows">
+              <span class="badge" [ngClass]="ui.statusClass(r.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(r.status)"></span>{{ r.status }}</span>
+              <span class="n">{{ r.count }}</span><span class="pct">{{ percent(r.count) }}</span>
+            </div>
+          </div>
+          <div class="sat-box">
+            <div class="row" style="justify-content:space-between;align-items:flex-start">
+              <div><div class="card-s" style="margin:0">Client satisfaction</div><div class="sat-big">{{ satisfactionPercent }}</div></div>
+              <span class="kpi-ic k-ok"><span class="ic i-smile"></span></span>
+            </div>
+            <div class="stack" style="margin-top:10px"><div class="seg" [style.width]="happyWidth" style="background:#16A34A"></div><div class="seg" [style.width]="unhappyWidth" style="background:#F87171"></div></div>
+            <div class="mini-split">
+              <span class="sat yes"><span class="ic i-smile ic-14"></span>{{ happyCount }} happy</span>
+              <span class="sat no"><span class="ic i-frown ic-14"></span>{{ unhappyCount }} unhappy</span>
+              <span class="sat pending">{{ awaitingCount }} awaiting</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Recent tickets summary table -->
+    <section class="card" aria-labelledby="h-recent">
+      <div class="card-h">
+        <div><h2 class="card-t" id="h-recent">Recent tickets</h2><p class="card-s">Latest requests across all clients</p></div>
+        <a class="btn btn-sec btn-sm" routerLink="/manager/tickets">View all</a>
+      </div>
+
+      <ng-container *ngIf="recentTickets.length > 0">
+        <div class="tbl-wrap has-cards" style="max-height:none">
+          <div class="tbl w-d" role="table" aria-label="Recent tickets">
+            <div class="thead" role="rowgroup"><div class="tr cols-d" role="row">
+              <div class="th" role="columnheader">ID</div><div class="th" role="columnheader">Title</div><div class="th" role="columnheader">Category</div>
+              <div class="th" role="columnheader">Priority</div><div class="th" role="columnheader">Status</div><div class="th" role="columnheader">Client</div>
+              <div class="th" role="columnheader">Assigned agent</div><div class="th" role="columnheader">Created</div><div class="th" role="columnheader">Satisfaction</div>
+              <div class="th r" role="columnheader"><span class="sr-only">Action</span></div>
+            </div></div>
+            <div class="tbody" role="rowgroup">
+              <div class="tr cols-d" role="row" *ngFor="let t of recentTickets">
+                <div class="td tid" role="cell">#{{ t.ticketId }}</div>
+                <div class="td" role="cell"><a class="t-title" [routerLink]="['/manager/tickets', t.ticketId]" [title]="t.title">{{ t.title }}</a></div>
+                <div class="td" role="cell"><span class="chip">{{ t.issueCategory }}</span></div>
+                <div class="td" role="cell"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ t.priority }}</span></div>
+                <div class="td" role="cell"><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)" aria-hidden="true"></span>{{ t.status }}</span></div>
+                <div class="td" role="cell"><span class="person"><span class="avatar av-xs" [style.background]="ui.avatar(t.user?.username).bg" [style.color]="ui.avatar(t.user?.username).fg">{{ ui.avatar(t.user?.username).ini }}</span><span class="trunc">{{ t.user?.username }}</span></span></div>
+                <div class="td" role="cell">
+                  <span *ngIf="t.supportAgent" class="person"><span class="avatar av-xs" [style.background]="ui.avatar(t.supportAgent.name).bg" [style.color]="ui.avatar(t.supportAgent.name).fg">{{ ui.avatar(t.supportAgent.name).ini }}</span><span class="trunc">{{ t.supportAgent.name }}</span></span>
+                  <span *ngIf="!t.supportAgent" class="unassigned">Unassigned</span>
+                </div>
+                <div class="td muted nowrap" role="cell">{{ ui.shortDate(t.createdDate) }}</div>
+                <div class="td" role="cell"><span class="sat" [ngClass]="ui.satisfaction(t).cls"><span class="ic ic-14" [ngClass]="ui.satisfaction(t).icon"></span>{{ ui.satisfaction(t).label }}</span></div>
+                <div class="td r" role="cell"><a class="icon-btn sm" [routerLink]="['/manager/tickets', t.ticketId]" [attr.aria-label]="'Open ticket ' + t.ticketId"><span class="ic i-chev-right"></span></a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="m-cards">
+          <a class="t-card" *ngFor="let t of recentTickets" [routerLink]="['/manager/tickets', t.ticketId]">
+            <span class="top"><span class="tid">#{{ t.ticketId }}</span><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span></span>
+            <span class="ttl">{{ t.title }}</span>
+            <span class="meta"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars"><i></i><i></i><i></i></span>{{ t.priority }}</span><span>{{ t.issueCategory }}</span><span>{{ t.user?.username }}</span><span>{{ ui.satisfaction(t).label }}</span></span>
+          </a>
+        </div>
+      </ng-container>
+
+      <div *ngIf="recentTickets.length === 0" class="empty">
+        <div class="empty-art"><div class="tile"><span class="ic i-inbox ic-24"></span></div></div>
+        <h3 class="empty-t">No Tickets Available</h3>
+        <p class="empty-d">New client tickets will show up here as soon as they’re raised.</p>
+      </div>
+    </section>
+  </ng-container>
 </div>

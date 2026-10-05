@@ -1,57 +1,110 @@
 <div class="page">
-  <div class="card">
-    <h2 class="page-title">Your Tickets</h2>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Your Tickets</h1>
+      <p class="page-sub">Track the requests you’ve raised with our support team.</p>
+    </div>
+    <a class="btn btn-pri" routerLink="/client/tickets/add"><span class="ic i-plus"></span>Create Ticket</a>
+  </div>
+
+  <section class="card">
+    <div class="status-tabs" role="tablist" aria-label="Filter by status">
+      <button *ngFor="let s of statusTabs" type="button" role="tab" class="stab" [class.on]="statusFilter === s"
+              [attr.aria-selected]="statusFilter === s" (click)="statusFilter = s">{{ s || 'All' }}<span class="n">{{ countForTab(s) }}</span></button>
+    </div>
 
     <div class="toolbar">
-      <div>
-        <label for="searchTickets">Search by:</label>
-        <input id="searchTickets" type="text" placeholder="Ticket Title or Issue Category" [(ngModel)]="searchText" />
-      </div>
-      <div>
-        <label for="priorityFilter">Filter by Priority:</label>
-        <select id="priorityFilter" [(ngModel)]="priorityFilter">
-          <option value="">All Priorities</option>
-          <option *ngFor="let p of priorities" [value]="p">{{ p }}</option>
-        </select>
-      </div>
+      <div class="search"><span class="ic i-search ic-14" aria-hidden="true"></span><label class="sr-only" for="tq">Search tickets</label>
+        <input id="tq" class="input" type="search" placeholder="Search by title or issue" [(ngModel)]="searchText"></div>
+      <label class="sr-only" for="f-pri">Priority</label>
+      <select id="f-pri" class="select" [(ngModel)]="priorityFilter"><option value="">All priorities</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+      <button *ngIf="anyFilter" type="button" class="btn btn-ghost btn-sm" (click)="clearFilters()"><span class="ic i-x ic-14"></span>Clear filters</button>
+      <span class="filter-note">Showing {{ filteredTickets.length }} of {{ tickets.length }}</span>
     </div>
 
-    <div class="table-wrapper">
-      <table class="data-table" id="clientTicketsTable">
-        <thead>
-          <tr>
-            <th>S.No</th><th>Title</th><th>Issue Category</th><th>Priority</th><th>Created Date</th>
-            <th>Ticket Status</th><th>Resolution Date</th><th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let ticket of filteredTickets; let i = index">
-            <td>{{ i + 1 }}</td>
-            <td>{{ ticket.title }}</td>
-            <td>{{ ticket.issueCategory }}</td>
-            <td>{{ ticket.priority }}</td>
-            <td>{{ ticket.createdDate | date: 'yyyy-MM-dd' }}</td>
-            <td>{{ ticket.status }}</td>
-            <td>{{ ticket.resolutionDate ? (ticket.resolutionDate | date: 'yyyy-MM-dd') : 'Not Resolved' }}</td>
-            <td>
-              <div class="actions">
-                <button type="button" class="btn btn-success btn-pill" [disabled]="!canModify(ticket)"
-                        (click)="editTicket(ticket)">Edit</button>
-                <button type="button" class="btn btn-danger btn-pill" [disabled]="!canModify(ticket)"
-                        (click)="ticketToDelete = ticket">Delete</button>
-                <button *ngIf="ticket.agentId" type="button" class="btn btn-info btn-pill"
-                        (click)="viewAgent(ticket)">View Agent</button>
-              </div>
-            </td>
-          </tr>
-          <tr *ngIf="!loading && filteredTickets.length === 0">
-            <td colspan="8" class="no-records">Oops! No records found</td>
-          </tr>
-        </tbody>
-      </table>
+    <ng-container *ngIf="loading">
+      <div class="sk-row" *ngFor="let x of [1,2,3,4]"><div class="sk sk-l" style="width:60px"></div><div class="sk sk-l" style="flex:1 1 auto"></div><div class="sk" style="width:90px;height:22px;border-radius:999px"></div><div class="sk sk-l" style="width:120px"></div></div>
+    </ng-container>
+
+    <div *ngIf="errorMessage" class="err-page" role="alert">
+      <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+      <h1 class="err-t">Unable to load your tickets</h1><p class="err-d">{{ errorMessage }}</p>
+      <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadTickets()"><span class="ic i-refresh"></span>Retry</button></div>
     </div>
+
+    <ng-container *ngIf="!loading && !errorMessage && filteredTickets.length > 0">
+      <div class="tbl-wrap has-cards">
+        <div class="tbl w-c" role="table" aria-label="Your tickets">
+          <div class="thead" role="rowgroup"><div class="tr cols-c" role="row">
+            <div class="th" role="columnheader">ID</div><div class="th" role="columnheader">Title</div><div class="th" role="columnheader">Category</div>
+            <div class="th" role="columnheader">Priority</div><div class="th" role="columnheader">Status</div><div class="th" role="columnheader">Assigned agent</div>
+            <div class="th" role="columnheader">Created</div><div class="th r" role="columnheader">Actions</div>
+          </div></div>
+          <div class="tbody" role="rowgroup">
+            <div class="tr cols-c" role="row" *ngFor="let t of filteredTickets">
+              <div class="td tid" role="cell">#{{ t.ticketId }}</div>
+              <div class="td" role="cell"><a class="t-title" [routerLink]="['/client/tickets', t.ticketId]" [title]="t.title">{{ t.title }}</a></div>
+              <div class="td" role="cell"><span class="chip">{{ t.issueCategory }}</span></div>
+              <div class="td" role="cell"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ t.priority }}</span></div>
+              <div class="td" role="cell"><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)" aria-hidden="true"></span>{{ t.status }}</span></div>
+              <div class="td" role="cell">
+                <span *ngIf="t.supportAgent" class="person"><span class="avatar av-xs" [style.background]="ui.avatar(t.supportAgent.name).bg" [style.color]="ui.avatar(t.supportAgent.name).fg">{{ ui.avatar(t.supportAgent.name).ini }}</span><span class="trunc">{{ t.supportAgent.name }}</span></span>
+                <span *ngIf="!t.supportAgent" class="unassigned">Awaiting assignment</span>
+              </div>
+              <div class="td muted nowrap" role="cell">{{ ui.shortDate(t.createdDate) }}</div>
+              <div class="td" role="cell"><div class="act-cell">
+                <ng-container *ngIf="canEdit(t)">
+                  <a class="icon-btn sm" [routerLink]="['/client/tickets/edit', t.ticketId]" [attr.aria-label]="'Edit ticket ' + t.ticketId" title="Edit"><span class="ic i-edit"></span></a>
+                  <button type="button" class="icon-btn sm danger" (click)="askDelete(t)" [attr.aria-label]="'Delete ticket ' + t.ticketId" title="Delete"><span class="ic i-trash"></span></button>
+                </ng-container>
+                <a *ngIf="t.supportAgent && !canReview(t)" class="btn btn-sec btn-sm" [routerLink]="['/client/tickets', t.ticketId]"><span class="ic i-headset ic-14"></span>View Agent</a>
+                <a *ngIf="canReview(t)" class="btn btn-sec btn-sm" routerLink="/client/feedback/add" [queryParams]="{ ticketId: t.ticketId }"><span class="ic i-star ic-14"></span>Review</a>
+                <a class="icon-btn sm" [routerLink]="['/client/tickets', t.ticketId]" [attr.aria-label]="'Open ticket ' + t.ticketId" title="View details"><span class="ic i-chev-right"></span></a>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="m-cards">
+        <a class="t-card" *ngFor="let t of filteredTickets" [routerLink]="['/client/tickets', t.ticketId]">
+          <span class="top"><span class="tid">#{{ t.ticketId }}</span><span class="badge" [ngClass]="ui.statusClass(t.status)"><span class="ic ic-12" [ngClass]="ui.statusIcon(t.status)"></span>{{ t.status }}</span></span>
+          <span class="ttl">{{ t.title }}</span>
+          <span class="meta"><span class="pri" [ngClass]="ui.priorityClass(t.priority)"><span class="pri-bars"><i></i><i></i><i></i></span>{{ t.priority }}</span><span>{{ t.issueCategory }}</span><span>{{ t.supportAgent?.name || 'Awaiting agent' }}</span><span>{{ ui.shortDate(t.createdDate) }}</span></span>
+        </a>
+      </div>
+    </ng-container>
+
+    <div *ngIf="!loading && !errorMessage && tickets.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-ticket ic-24"></span></div></div>
+      <h3 class="empty-t">Oops! No records found</h3>
+      <p class="empty-d">You haven’t raised any tickets yet. Create one and our team will pick it up.</p>
+      <a class="btn btn-pri" routerLink="/client/tickets/add"><span class="ic i-plus"></span>Create Ticket</a>
+    </div>
+    <div *ngIf="!loading && !errorMessage && tickets.length > 0 && filteredTickets.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-filter-x ic-24"></span></div></div>
+      <h3 class="empty-t">No results match your filters</h3>
+      <p class="empty-d">Try a different search term, or clear the filters to see every ticket.</p>
+      <button type="button" class="btn btn-sec" (click)="clearFilters()">Clear filters</button>
+    </div>
+  </section>
+</div>
+
+<!-- Delete confirmation -->
+<div *ngIf="deleteTicket" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="deleteTicket = null"></button>
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-delt">
+    <div class="modal-h"><span class="m-ic danger"><span class="ic i-trash ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-delt">Delete ticket?</h2><p class="modal-s">Are you sure you want to delete this ticket?</p></div></div>
+    <div class="modal-b">
+      <div class="mini-t"><span class="tid">#{{ deleteTicket.ticketId }}</span><b>{{ deleteTicket.title }}</b></div>
+      <p class="muted" style="font-size:13px;margin-top:10px">This permanently removes the ticket. It can’t be undone.</p>
+      <div *ngIf="deleteError" class="alert alert-err" role="alert" style="margin-top:12px"><span class="ic i-alert-circle"></span><div>{{ deleteError }}</div></div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="deleteTicket = null">Cancel</button><button type="button" class="btn btn-danger" (click)="confirmDelete()">Yes, Delete</button></div>
   </div>
 </div>
 
-<app-confirm-dialog *ngIf="ticketToDelete" message="Are you sure you want to delete this ticket?"
-  confirmText="Yes, Delete" (confirm)="confirmDelete()" (cancel)="ticketToDelete = null"></app-confirm-dialog>
+<div class="toasts" role="status" aria-live="polite">
+  <div *ngIf="toastTitle" class="toast ok"><span class="t-ic"><span class="ic i-check ic-14"></span></span><div class="grow"><div class="tt">{{ toastTitle }}</div></div>
+    <button type="button" class="icon-btn sm" style="margin:-4px -4px 0 0;width:26px;height:26px" (click)="toastTitle = ''" aria-label="Dismiss notification"><span class="ic i-x ic-14"></span></button></div>
+</div>

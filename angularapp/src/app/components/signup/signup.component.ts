@@ -1,18 +1,8 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
-import { PASSWORD_MIN_LENGTH, ROLES, VALIDATION_PATTERNS } from '../../constants/constant';
 import { User } from '../../models/user.model';
 import { AuthService } from '../../services/auth.service';
-import { ErrorHandlerService } from '../../services/error-handler.service';
-
-/** Form-level validator: password and confirmPassword must match. */
-export const passwordsMatchValidator: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
-  const password = group.get('password')?.value;
-  const confirm = group.get('confirmPassword')?.value;
-  return password && confirm && password !== confirm ? { passwordMismatch: true } : null;
-};
 
 @Component({
   selector: 'app-signup',
@@ -21,75 +11,59 @@ export const passwordsMatchValidator: ValidatorFn = (group: AbstractControl): Va
 })
 export class SignupComponent {
 
-  readonly roles = [ROLES.MANAGER, ROLES.CLIENT];
-  readonly passwordMinLength = PASSWORD_MIN_LENGTH;
-  signupForm: FormGroup;
+  user: User = { username: '', email: '', mobileNumber: '', password: '', userRole: '' };
+  confirmPassword = '';
   submitted = false;
   loading = false;
   errorMessage = '';
-  showSuccess = false;
+  registered = false;
+  registeredEmail = '';
 
-  constructor(
-    private readonly fb: FormBuilder,
-    private readonly authService: AuthService,
-    private readonly errorHandler: ErrorHandlerService,
-    private readonly router: Router
-  ) {
-    this.signupForm = this.fb.group({
-      username: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
-      email: ['', [Validators.required, Validators.pattern(VALIDATION_PATTERNS.EMAIL)]],
-      mobileNumber: ['', [Validators.required, Validators.pattern(VALIDATION_PATTERNS.MOBILE)]],
-      password: ['', [Validators.required, Validators.minLength(PASSWORD_MIN_LENGTH), Validators.maxLength(64)]],
-      confirmPassword: ['', [Validators.required]],
-      userRole: ['', [Validators.required]]
-    }, { validators: passwordsMatchValidator });
+  constructor(private authService: AuthService, private router: Router) {}
+
+  passwordsDiffer(): boolean {
+    return this.confirmPassword !== '' && this.confirmPassword !== this.user.password;
   }
 
-  showError(field: string): boolean {
-    const control = this.signupForm.get(field);
-    return !!control && control.invalid && (control.touched || this.submitted);
-  }
-
-  hasError(field: string, error: string): boolean {
-    return !!this.signupForm.get(field)?.hasError(error);
-  }
-
-  get passwordMismatch(): boolean {
-    const confirm = this.signupForm.get('confirmPassword');
-    return this.signupForm.hasError('passwordMismatch') && !!confirm && (confirm.touched || this.submitted);
-  }
-
-  onSubmit(): void {
+  onSubmit(form: NgForm): void {
     this.submitted = true;
     this.errorMessage = '';
-    if (this.signupForm.invalid) {
-      this.signupForm.markAllAsTouched();
+    if (form.invalid || this.passwordsDiffer()) {
       return;
     }
+
     this.loading = true;
-    const value = this.signupForm.value;
-    const user: User = {
-      username: (value.username as string).trim(),
-      email: (value.email as string).trim(),
-      mobileNumber: (value.mobileNumber as string).trim(),
-      password: value.password as string,
-      userRole: value.userRole as string
+    const newUser: User = {
+      username: this.user.username.trim(),
+      email: this.user.email.trim(),
+      mobileNumber: this.user.mobileNumber.trim(),
+      password: this.user.password,
+      userRole: this.user.userRole
     };
-    this.authService.register(user).subscribe({
+
+    this.authService.register(newUser).subscribe({
       next: () => {
         this.loading = false;
-        this.showSuccess = true;
+        this.registeredEmail = newUser.email;
+        this.registered = true;
+        form.resetForm();
+        this.submitted = false;
       },
-      error: (err: HttpErrorResponse) => {
+      error: (error) => {
         this.loading = false;
-        this.errorMessage = err.status === 409 ? 'A user with this email already exists'
-          : this.errorHandler.getMessage(err);
+        if (error.status === 409) {
+          this.errorMessage = 'A user with this email already exists';
+        } else if (error.error && error.error.message) {
+          this.errorMessage = error.error.message;
+        } else {
+          this.errorMessage = 'Registration failed. Please try again.';
+        }
       }
     });
   }
 
   goToLogin(): void {
-    this.showSuccess = false;
+    this.registered = false;
     this.router.navigate(['/login']);
   }
 }

@@ -1,86 +1,132 @@
-<div class="form-card">
-  <button *ngIf="isEditMode" type="button" id="backButton" class="btn btn-info btn-sm back-button" (click)="goBack()">Back</button>
-  <h2 id="agentFormTitle">{{ isEditMode ? 'Edit Support Agent' : 'Add New Support Agent' }}</h2>
+<div class="page">
+  <a class="back" routerLink="/manager/agents"><span class="ic i-arrow-left ic-14"></span>Back</a>
+  <div class="page-head"><div>
+    <h1 class="page-title">{{ editId ? 'Edit Support Agent' : 'Add New Support Agent' }}</h1>
+    <p class="page-sub">{{ editId ? 'Update this agent’s details and availability.' : 'Agents become assignable as soon as they’re added.' }}</p>
+  </div></div>
 
-  <form id="agentForm" [formGroup]="agentForm" (ngSubmit)="onSubmit()" novalidate>
-    <div class="form-group">
-      <label for="name">Name<span class="required">*</span></label>
-      <input id="name" name="name" class="form-control" formControlName="name" [class.is-invalid]="showError('name')" />
-      <div class="error-text" *ngIf="showError('name')">
-        <span *ngIf="hasError('name', 'required')">*Name is required</span>
-        <span *ngIf="hasError('name', 'maxlength')">*Name must not exceed 100 characters</span>
-      </div>
-    </div>
+  <form #agentForm="ngForm" (ngSubmit)="onSubmit(agentForm)" novalidate>
+    <div class="form-layout">
+      <section class="card">
+        <div class="form-sec">
+          <h2 class="sec-t">Profile</h2><p class="sec-d">Contact details clients and managers will see.</p>
+          <div class="fgrid">
+            <div class="field full">
+              <label class="label" for="name">Name <span class="req" aria-hidden="true">*</span></label>
+              <input id="name" name="name" class="input" type="text" placeholder="Full name" [(ngModel)]="agent.name" #name="ngModel"
+                     required pattern="^[A-Za-z][A-Za-z .'-]{2,}$" [class.is-err]="name.invalid && (name.touched || submitted)">
+              <p class="field-err" *ngIf="name.errors?.['required'] && (name.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Name is required</p>
+              <p class="field-err" *ngIf="name.errors?.['pattern'] && (name.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Enter the agent’s full name (letters only)</p>
+            </div>
+            <div class="field">
+              <label class="label" for="email">Email <span class="req" aria-hidden="true">*</span></label>
+              <input id="email" name="email" class="input" type="email" placeholder="name@supportsphere.io" [(ngModel)]="agent.email" #email="ngModel"
+                     required pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$" [class.is-err]="email.invalid && (email.touched || submitted)">
+              <p class="field-err" *ngIf="email.errors?.['required'] && (email.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Email is required</p>
+              <p class="field-err" *ngIf="email.errors?.['pattern'] && (email.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Enter a valid email address</p>
+            </div>
+            <div class="field">
+              <label class="label" for="phone">Phone <span class="req" aria-hidden="true">*</span></label>
+              <input id="phone" name="phone" class="input" type="tel" inputmode="numeric" placeholder="10-digit number" [(ngModel)]="agent.phone" #phone="ngModel"
+                     required pattern="^[6-9][0-9]{9}$" [class.is-err]="phone.invalid && (phone.touched || submitted)">
+              <p class="field-err" *ngIf="phone.errors?.['required'] && (phone.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Phone is required</p>
+              <p class="field-err" *ngIf="phone.errors?.['pattern'] && (phone.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Enter a valid 10-digit phone number</p>
+            </div>
+            <div class="field full">
+              <span class="label">Profile / résumé <span class="hint" style="font-weight:400">(optional)</span></span>
+              <label class="drop">
+                <input class="sr-only" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" (change)="onFileSelected($event)">
+                <span class="kpi-ic k-pri"><span class="ic i-upload"></span></span>
+                <span><b style="display:block;font-weight:500">{{ fileName || 'Upload profile or résumé' }}</b>
+                  <span class="hint">{{ fileName ? 'Stored as a base64 string in profile · click to replace' : 'PDF, DOC or image · stored as base64 in profile' }}</span></span>
+              </label>
+            </div>
+          </div>
+        </div>
 
-    <div class="form-group">
-      <label for="email">Email<span class="required">*</span></label>
-      <input id="email" name="email" type="email" class="form-control" formControlName="email" [class.is-invalid]="showError('email')" />
-      <div class="error-text" *ngIf="showError('email')">
-        <span *ngIf="hasError('email', 'required')">*Email is required</span>
-        <span *ngIf="hasError('email', 'pattern')">*Enter a valid email address.</span>
-      </div>
-    </div>
+        <div class="form-sec">
+          <h2 class="sec-t">Work details</h2><p class="sec-d">Expertise is matched against ticket categories when suggesting agents.</p>
+          <div class="fgrid">
+            <div class="field">
+              <label class="label" for="expertise">Expertise <span class="req" aria-hidden="true">*</span></label>
+              <select id="expertise" name="expertise" class="select" [(ngModel)]="agent.expertise" #expertise="ngModel" required
+                      [class.is-err]="expertise.invalid && (expertise.touched || submitted)">
+                <option value="">Select expertise</option>
+                <option *ngFor="let e of expertiseOptions" [value]="e">{{ e }}</option>
+              </select>
+              <p class="field-err" *ngIf="expertise.invalid && (expertise.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Select an area of expertise</p>
+            </div>
+            <div class="field">
+              <label class="label" for="experience">Experience <span class="req" aria-hidden="true">*</span></label>
+              <input id="experience" name="experience" class="input" type="text" placeholder="e.g. 3 years" [(ngModel)]="agent.experience" #experience="ngModel"
+                     required pattern="^[0-9]+(\.[0-9]+)?\s*([Yy]ears?|[Yy]rs?|[Mm]onths?)$" [class.is-err]="experience.invalid && (experience.touched || submitted)">
+              <p class="field-err" *ngIf="experience.errors?.['required'] && (experience.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Experience is required</p>
+              <p class="field-err" *ngIf="experience.errors?.['pattern'] && (experience.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Use a format like “3 years”</p>
+            </div>
+            <div class="field">
+              <label class="label" for="shiftTiming">Shift timing <span class="req" aria-hidden="true">*</span></label>
+              <select id="shiftTiming" name="shiftTiming" class="select" [(ngModel)]="agent.shiftTiming" #shift="ngModel" required
+                      [class.is-err]="shift.invalid && (shift.touched || submitted)">
+                <option value="">Select a shift</option>
+                <option *ngFor="let s of shiftOptions" [value]="s">{{ s }}</option>
+              </select>
+              <p class="field-err" *ngIf="shift.invalid && (shift.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Select a shift</p>
+            </div>
+            <fieldset class="field" style="border:0;padding:0;margin:0">
+              <legend class="label" style="margin-bottom:6px">Availability <span class="req" aria-hidden="true">*</span></legend>
+              <div class="opt-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                <label *ngFor="let s of ['Available', 'Unavailable']" class="opt" [class.sel]="agent.status === s" style="padding:8px 10px;align-items:center">
+                  <input class="sr-only" type="radio" name="status" [value]="s" [(ngModel)]="agent.status">
+                  <span class="radio-dot" style="margin-top:0"></span>
+                  <span class="avail" [class.on]="s === 'Available'" [class.off]="s !== 'Available'">{{ s }}</span>
+                </label>
+              </div>
+            </fieldset>
+            <div class="field full">
+              <label class="label" for="remarks">Remarks <span class="req" aria-hidden="true">*</span></label>
+              <textarea id="remarks" name="remarks" class="textarea" style="min-height:96px" placeholder="Strengths, languages, escalation notes…"
+                        [(ngModel)]="agent.remarks" #remarks="ngModel" required minlength="5" [class.is-err]="remarks.invalid && (remarks.touched || submitted)"></textarea>
+              <p class="field-err" *ngIf="remarks.errors?.['required'] && (remarks.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Add a short remark</p>
+              <p class="field-err" *ngIf="remarks.errors?.['minlength'] && (remarks.touched || submitted)"><span class="ic i-alert-circle ic-14"></span>Remarks must be at least 5 characters</p>
+            </div>
+          </div>
+        </div>
 
-    <div class="form-group">
-      <label for="phone">Phone<span class="required">*</span></label>
-      <input id="phone" name="phone" class="form-control" maxlength="10" formControlName="phone" [class.is-invalid]="showError('phone')" />
-      <div class="error-text" *ngIf="showError('phone')">
-        <span *ngIf="hasError('phone', 'required')">*Phone number is required</span>
-        <span *ngIf="hasError('phone', 'pattern')">*Phone number must be 10 digits</span>
-      </div>
-    </div>
+        <div class="form-foot" style="flex-wrap:wrap">
+          <div *ngIf="submitted && agentForm.invalid" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px"><span class="ic i-alert-circle"></span><div>Please fill in all required fields correctly.</div></div>
+          <div *ngIf="errorMessage" class="alert alert-err" role="alert" style="margin-right:auto;padding:8px 12px"><span class="ic i-alert-circle"></span><div>{{ errorMessage }}</div></div>
+          <a class="btn btn-sec" routerLink="/manager/agents">Cancel</a>
+          <button type="submit" class="btn btn-pri" [disabled]="saving">{{ editId ? 'Update Agent' : 'Add Agent' }}</button>
+        </div>
+      </section>
 
-    <div class="form-group">
-      <label for="expertise">Expertise<span class="required">*</span></label>
-      <select id="expertise" name="expertise" class="form-control" formControlName="expertise" [class.is-invalid]="showError('expertise')">
-        <option value="" disabled>Select Expertise</option>
-        <option *ngFor="let e of expertiseOptions" [value]="e">{{ e }}</option>
-      </select>
-      <div class="error-text" *ngIf="showError('expertise')">*Expertise is required</div>
-    </div>
-
-    <div class="form-group">
-      <label for="experience">Experience<span class="required">*</span></label>
-      <input id="experience" name="experience" class="form-control" placeholder="e.g. 3 years" formControlName="experience"
-             [class.is-invalid]="showError('experience')" />
-      <div class="error-text" *ngIf="showError('experience')">
-        <span *ngIf="hasError('experience', 'required')">*Experience is required</span>
-        <span *ngIf="hasError('experience', 'maxlength')">*Experience must not exceed 50 characters</span>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="shiftTiming">Shift Timing<span class="required">*</span></label>
-      <input id="shiftTiming" name="shiftTiming" class="form-control" placeholder="e.g. 9 AM - 6 PM" formControlName="shiftTiming"
-             [class.is-invalid]="showError('shiftTiming')" />
-      <div class="error-text" *ngIf="showError('shiftTiming')">
-        <span *ngIf="hasError('shiftTiming', 'required')">*Shift timing is required</span>
-        <span *ngIf="hasError('shiftTiming', 'maxlength')">*Shift timing must not exceed 50 characters</span>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="remarks">Remarks</label>
-      <textarea id="remarks" name="remarks" class="form-control" formControlName="remarks"></textarea>
-      <div class="error-text" *ngIf="showError('remarks')">*Remarks must not exceed 1000 characters</div>
-    </div>
-
-    <div class="form-group">
-      <label for="profile">Profile (Image)<span class="required" *ngIf="!isEditMode">*</span></label>
-      <input id="profile" name="profile" type="file" accept="image/*" class="form-control" (change)="onFileSelected($event)" />
-      <div class="hint" *ngIf="isEditMode">Leave empty to keep the current image.</div>
-      <div class="error-text" *ngIf="profileError">*{{ profileError }}</div>
-      <div class="error-text" *ngIf="!profileError && showError('profile')">*Profile image is required</div>
-    </div>
-
-    <div class="form-error" id="agentFormError" *ngIf="formMessage">*{{ formMessage }}</div>
-
-    <div class="form-actions">
-      <button type="submit" id="submitAgentButton" class="btn btn-primary" [disabled]="loading || agentForm.disabled">
-        {{ isEditMode ? 'Update Agent' : 'Add Agent' }}
-      </button>
+      <!-- Live preview of the agent card -->
+      <aside class="card" aria-label="Live preview">
+        <div class="card-h"><h2 class="card-t">Preview</h2><span class="hint">How the card will look</span></div>
+        <div class="card-b">
+          <div class="card agent-card preview-card" style="box-shadow:none">
+            <div class="ag-head"><span class="avatar av-lg" [style.background]="ui.avatar(agent.name || 'New Agent').bg" [style.color]="ui.avatar(agent.name || 'New Agent').fg">{{ ui.avatar(agent.name || 'New Agent').ini }}</span>
+              <div class="grow" style="min-width:0"><h3 class="ag-name trunc">{{ agent.name || 'Agent name' }}</h3><div class="ag-exp">{{ agent.expertise || 'Expertise' }} · {{ agent.experience || 'Experience' }}</div>
+                <div style="margin-top:6px"><span class="avail" [class.on]="agent.status === 'Available'" [class.off]="agent.status !== 'Available'">{{ agent.status }}</span></div></div></div>
+            <div class="ag-meta" style="grid-template-columns:minmax(0,1fr)">
+              <div class="m"><span class="ic i-mail ic-14"></span><span>{{ agent.email || 'email@supportsphere.io' }}</span></div>
+              <div class="m"><span class="ic i-phone ic-14"></span><span>{{ agent.phone || 'Phone' }}</span></div>
+              <div class="m"><span class="ic i-clock ic-14"></span><span>{{ agent.shiftTiming || 'Shift timing' }}</span></div>
+            </div>
+            <p class="ag-rem" style="margin:0">{{ agent.remarks || 'Remarks appear here.' }}</p>
+          </div>
+        </div>
+      </aside>
     </div>
   </form>
 </div>
 
-<app-message-dialog *ngIf="successMessage" [message]="successMessage" buttonText="Ok" (ok)="onSuccessOk()"></app-message-dialog>
+<!-- Success popup (SRS) -->
+<div *ngIf="successMessage" class="overlay">
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-ok">
+    <div class="modal-h"><span class="m-ic ok"><span class="ic i-circle-check ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-ok">{{ successMessage }}</h2><p class="modal-s">{{ editId ? 'The agent’s details were saved.' : 'The agent can now be assigned to tickets.' }}</p></div></div>
+    <div class="modal-b"></div>
+    <div class="modal-f"><button type="button" class="btn btn-pri" (click)="closeSuccess()">Ok</button></div>
+  </div>
+</div>

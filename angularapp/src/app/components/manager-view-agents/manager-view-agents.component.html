@@ -1,72 +1,160 @@
 <div class="page">
-  <div class="card">
-    <h2 class="page-title">Support Agents</h2>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Support Agents</h1>
+      <p class="page-sub">Manage your team’s availability, expertise and shifts.</p>
+    </div>
+    <a class="btn btn-pri" routerLink="/manager/agents/add"><span class="ic i-plus"></span>Add Agent</a>
+  </div>
 
+  <section class="card">
     <div class="toolbar">
-      <div>
-        <label for="searchAgents">Search by:</label>
-        <input id="searchAgents" type="text" placeholder="Agent Name or Expertise..." [(ngModel)]="searchText" />
-      </div>
-      <div>
-        <label for="statusFilter">Filter by Status:</label>
-        <select id="statusFilter" [(ngModel)]="statusFilter">
-          <option value="">All Status</option>
-          <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
-        </select>
+      <div class="search"><span class="ic i-search ic-14" aria-hidden="true"></span><label class="sr-only" for="aq-n">Search by name</label>
+        <input id="aq-n" class="input" type="search" placeholder="Search by name" [(ngModel)]="nameSearch"></div>
+      <div class="search" style="max-width:240px"><span class="ic i-briefcase ic-14" aria-hidden="true"></span><label class="sr-only" for="aq-e">Search by expertise</label>
+        <input id="aq-e" class="input" type="search" placeholder="Search by expertise" [(ngModel)]="expertiseSearch"></div>
+      <label class="sr-only" for="aq-s">Availability</label>
+      <select id="aq-s" class="select" [(ngModel)]="statusFilter"><option value="">All statuses</option><option value="Available">Available</option><option value="Unavailable">Unavailable</option></select>
+      <button *ngIf="anyFilter" type="button" class="btn btn-ghost btn-sm" (click)="clearFilters()"><span class="ic i-x ic-14"></span>Clear</button>
+      <span class="filter-note">{{ availableCount }} of {{ agents.length }} available</span>
+      <div class="tabs" role="group" aria-label="View as">
+        <button type="button" class="tab" [class.on]="view === 'cards'" [attr.aria-pressed]="view === 'cards'" (click)="view = 'cards'"><span class="ic i-grid ic-14"></span>Cards</button>
+        <button type="button" class="tab" [class.on]="view === 'table'" [attr.aria-pressed]="view === 'table'" (click)="view = 'table'"><span class="ic i-list ic-14"></span>Table</button>
       </div>
     </div>
 
-    <div class="table-wrapper">
-      <table class="data-table" id="agentsTable">
-        <thead>
-          <tr><th>S.No</th><th>Name</th><th>Email</th><th>Phone</th><th>Expertise</th><th>Status</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let agent of filteredAgents; let i = index">
-            <td>{{ i + 1 }}</td>
-            <td>{{ agent.name }}</td>
-            <td>{{ agent.email }}</td>
-            <td>{{ agent.phone }}</td>
-            <td>{{ agent.expertise }}</td>
-            <td>{{ agent.status }}</td>
-            <td>
-              <div class="actions">
-                <button type="button" class="btn btn-success btn-pill" (click)="editAgent(agent)">Edit</button>
-                <button type="button" class="btn btn-danger btn-pill" (click)="agentToDelete = agent">Delete</button>
-                <button type="button" class="btn btn-pill" [ngClass]="isAvailable(agent) ? 'btn-warning' : 'btn-teal'"
-                        (click)="toggleStatus(agent)">{{ isAvailable(agent) ? 'Make Unavailable' : 'Make Available' }}</button>
-                <button type="button" class="btn btn-info btn-pill" (click)="profileAgent = agent">View Profile</button>
-              </div>
-            </td>
-          </tr>
-          <tr *ngIf="!loading && filteredAgents.length === 0">
-            <td colspan="7" class="no-records">Oops! No records found</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Loading -->
+    <div *ngIf="loading" class="agent-grid">
+      <div class="card agent-card" *ngFor="let x of [1,2,3]"><div class="ag-head"><div class="sk" style="width:48px;height:48px;border-radius:50%"></div><div class="grow"><div class="sk sk-l" style="width:60%;margin-bottom:8px"></div><div class="sk sk-l" style="width:40%"></div></div></div><div class="sk sk-l" style="margin:20px 0 10px"></div><div class="sk" style="height:48px"></div></div>
     </div>
+
+    <div *ngIf="errorMessage" class="err-page" role="alert">
+      <div class="err-ic"><span class="ic i-wifi-off ic-28"></span></div>
+      <h1 class="err-t">Unable to load support agents</h1><p class="err-d">{{ errorMessage }}</p>
+      <div class="err-actions"><button type="button" class="btn btn-pri" (click)="loadAgents()"><span class="ic i-refresh"></span>Retry</button></div>
+    </div>
+
+    <!-- Card view -->
+    <div *ngIf="!loading && !errorMessage && view === 'cards' && filteredAgents.length > 0" class="agent-grid">
+      <article class="card agent-card" *ngFor="let a of filteredAgents">
+        <div class="ag-head">
+          <span class="avatar av-lg" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+          <div class="grow" style="min-width:0"><h3 class="ag-name trunc">{{ a.name }}</h3><div class="ag-exp">{{ a.expertise }} · {{ a.experience }}</div>
+            <div style="margin-top:6px"><span class="avail" [class.on]="a.status === 'Available'" [class.off]="a.status !== 'Available'">{{ a.status }}</span></div></div>
+        </div>
+        <div class="ag-meta">
+          <div class="m"><span class="ic i-mail ic-14"></span><span>{{ a.email }}</span></div>
+          <div class="m"><span class="ic i-phone ic-14"></span><span>{{ a.phone }}</span></div>
+          <div class="m"><span class="ic i-clock ic-14"></span><span>{{ a.shiftTiming }}</span></div>
+          <div class="m"><span class="ic i-calendar ic-14"></span><span>Added {{ ui.formatDate(a.addedDate) }}</span></div>
+        </div>
+        <p class="ag-rem">{{ a.remarks }}</p>
+        <div class="ag-foot">
+          <button type="button" class="btn btn-sec btn-sm" (click)="viewAgent = a"><span class="ic i-eye ic-14"></span>View</button>
+          <a class="btn btn-sec btn-sm" [routerLink]="['/manager/agents/edit', a.agentId]"><span class="ic i-edit ic-14"></span>Edit</a>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="toggleStatus(a)">{{ a.status === 'Available' ? 'Make Unavailable' : 'Make Available' }}</button>
+          <span class="grow"></span>
+          <button type="button" class="icon-btn sm danger" (click)="askDelete(a)" [attr.aria-label]="'Delete ' + a.name" title="Delete agent"><span class="ic i-trash"></span></button>
+        </div>
+      </article>
+    </div>
+
+    <!-- Table view -->
+    <ng-container *ngIf="!loading && !errorMessage && view === 'table' && filteredAgents.length > 0">
+      <div class="tbl-wrap has-cards">
+        <div class="tbl w-a" role="table" aria-label="Support agents">
+          <div class="thead" role="rowgroup"><div class="tr cols-a" role="row">
+            <div class="th" role="columnheader">Agent</div><div class="th" role="columnheader">Expertise</div><div class="th" role="columnheader">Experience</div>
+            <div class="th" role="columnheader">Shift</div><div class="th" role="columnheader">Availability</div><div class="th" role="columnheader">Added</div><div class="th r" role="columnheader">Actions</div>
+          </div></div>
+          <div class="tbody" role="rowgroup">
+            <div class="tr cols-a" role="row" *ngFor="let a of filteredAgents">
+              <div class="td" role="cell"><span class="person"><span class="avatar av-sm" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+                <span style="min-width:0"><span class="trunc" style="display:block;font-weight:500">{{ a.name }}</span><span class="muted trunc" style="display:block;font-size:12px">{{ a.email }}</span></span></span></div>
+              <div class="td" role="cell"><span class="chip">{{ a.expertise }}</span></div>
+              <div class="td" role="cell">{{ a.experience }}</div>
+              <div class="td muted" role="cell">{{ a.shiftTiming }}</div>
+              <div class="td" role="cell"><span class="avail" [class.on]="a.status === 'Available'" [class.off]="a.status !== 'Available'">{{ a.status }}</span></div>
+              <div class="td muted nowrap" role="cell">{{ ui.shortDate(a.addedDate) }}</div>
+              <div class="td" role="cell"><div class="act-cell">
+                <button type="button" class="icon-btn sm" (click)="viewAgent = a" [attr.aria-label]="'View ' + a.name" title="View"><span class="ic i-eye"></span></button>
+                <a class="icon-btn sm" [routerLink]="['/manager/agents/edit', a.agentId]" [attr.aria-label]="'Edit ' + a.name" title="Edit"><span class="ic i-edit"></span></a>
+                <button type="button" class="icon-btn sm" (click)="toggleStatus(a)" [attr.aria-label]="a.status === 'Available' ? 'Make Unavailable' : 'Make Available'" [title]="a.status === 'Available' ? 'Make Unavailable' : 'Make Available'"><span class="ic i-refresh"></span></button>
+                <button type="button" class="icon-btn sm danger" (click)="askDelete(a)" [attr.aria-label]="'Delete ' + a.name" title="Delete"><span class="ic i-trash"></span></button>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="m-cards"><div class="agent-grid">
+        <article class="card agent-card" *ngFor="let a of filteredAgents">
+          <div class="ag-head"><span class="avatar av-lg" [style.background]="ui.avatar(a.name).bg" [style.color]="ui.avatar(a.name).fg">{{ ui.avatar(a.name).ini }}</span>
+            <div class="grow"><h3 class="ag-name">{{ a.name }}</h3><div class="ag-exp">{{ a.expertise }} · {{ a.experience }}</div><div style="margin-top:6px"><span class="avail" [class.on]="a.status === 'Available'" [class.off]="a.status !== 'Available'">{{ a.status }}</span></div></div></div>
+          <div class="ag-foot" style="margin-top:14px">
+            <button type="button" class="btn btn-sec btn-sm" (click)="viewAgent = a">View</button>
+            <a class="btn btn-sec btn-sm" [routerLink]="['/manager/agents/edit', a.agentId]">Edit</a>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="toggleStatus(a)">{{ a.status === 'Available' ? 'Make Unavailable' : 'Make Available' }}</button>
+            <span class="grow"></span>
+            <button type="button" class="icon-btn sm danger" (click)="askDelete(a)" [attr.aria-label]="'Delete ' + a.name"><span class="ic i-trash"></span></button>
+          </div>
+        </article>
+      </div></div>
+    </ng-container>
+
+    <div *ngIf="!loading && !errorMessage && agents.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-users ic-24"></span></div></div>
+      <h3 class="empty-t">Oops! No records found</h3>
+      <p class="empty-d">Add your first agent so tickets can be assigned.</p>
+      <a class="btn btn-pri" routerLink="/manager/agents/add"><span class="ic i-plus"></span>Add Agent</a>
+    </div>
+    <div *ngIf="!loading && !errorMessage && agents.length > 0 && filteredAgents.length === 0" class="empty">
+      <div class="empty-art"><div class="tile"><span class="ic i-filter-x ic-24"></span></div></div>
+      <h3 class="empty-t">No results match your filters</h3>
+      <p class="empty-d">No agents match that name, expertise or availability.</p>
+      <button type="button" class="btn btn-sec" (click)="clearFilters()">Clear filters</button>
+    </div>
+  </section>
+</div>
+
+<!-- Agent profile dialog -->
+<div *ngIf="viewAgent" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="viewAgent = null"></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt-ag">
+    <div class="modal-h"><span class="avatar av-xl" [style.background]="ui.avatar(viewAgent.name).bg" [style.color]="ui.avatar(viewAgent.name).fg">{{ ui.avatar(viewAgent.name).ini }}</span>
+      <div class="grow" style="padding-top:6px"><h2 class="modal-t" id="mt-ag">{{ viewAgent.name }}</h2><p class="modal-s">{{ viewAgent.expertise }} · Agent #{{ viewAgent.agentId }}</p>
+        <span class="avail" [class.on]="viewAgent.status === 'Available'" [class.off]="viewAgent.status !== 'Available'" style="margin-top:6px">{{ viewAgent.status }}</span></div>
+      <button type="button" class="icon-btn sm" (click)="viewAgent = null" aria-label="Close"><span class="ic i-x"></span></button>
+    </div>
+    <div class="modal-b"><dl class="kv" style="margin:4px 0 0">
+      <dt>Email</dt><dd>{{ viewAgent.email }}</dd><dt>Phone</dt><dd>{{ viewAgent.phone }}</dd><dt>Experience</dt><dd>{{ viewAgent.experience }}</dd>
+      <dt>Shift timing</dt><dd>{{ viewAgent.shiftTiming }}</dd><dt>Added</dt><dd>{{ ui.formatDate(viewAgent.addedDate) }}</dd>
+      <dt>Profile</dt><dd>{{ viewAgent.profile ? 'Résumé on file' : 'Not uploaded' }}</dd><dt>Remarks</dt><dd>{{ viewAgent.remarks }}</dd>
+    </dl></div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="viewAgent = null">Close</button></div>
   </div>
 </div>
 
-<app-confirm-dialog *ngIf="agentToDelete" message="Are you sure you want to delete this agent?" confirmText="Yes, Delete"
-  (confirm)="confirmDelete()" (cancel)="agentToDelete = null"></app-confirm-dialog>
-
-<div class="modal-backdrop" *ngIf="profileAgent as agent" (click)="profileAgent = null">
-  <div class="modal-box profile-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-    <button type="button" class="modal-close" aria-label="Close" (click)="profileAgent = null">×</button>
-    <h3>Agent Profile</h3>
-    <div class="profile-image">
-      <img *ngIf="agent.profile; else initials" [src]="agent.profile" [alt]="agent.name" />
-      <ng-template #initials><span class="avatar avatar-placeholder">{{ agent.name.charAt(0) | uppercase }}</span></ng-template>
+<!-- Delete confirmation -->
+<div *ngIf="deleteAgent" class="overlay">
+  <button class="overlay-btn" type="button" tabindex="-1" aria-label="Close dialog" (click)="deleteAgent = null"></button>
+  <div class="modal sm" role="alertdialog" aria-modal="true" aria-labelledby="mt-dela">
+    <div class="modal-h"><span class="m-ic danger"><span class="ic i-trash ic-20"></span></span>
+      <div><h2 class="modal-t" id="mt-dela">Delete support agent?</h2><p class="modal-s">Are you sure you want to delete this support agent?</p></div>
     </div>
-    <p class="detail-row"><strong>Name:</strong> {{ agent.name }}</p>
-    <p class="detail-row"><strong>Email:</strong> {{ agent.email }}</p>
-    <p class="detail-row"><strong>Phone:</strong> {{ agent.phone }}</p>
-    <p class="detail-row"><strong>Expertise:</strong> {{ agent.expertise }}</p>
-    <p class="detail-row"><strong>Experience:</strong> {{ agent.experience }}</p>
-    <p class="detail-row"><strong>Shift Timing:</strong> {{ agent.shiftTiming }}</p>
-    <p class="detail-row"><strong>Status:</strong> {{ agent.status }}</p>
-    <p class="detail-row"><strong>Added Date:</strong> {{ agent.addedDate | date: 'yyyy-MM-dd' }}</p>
-    <p class="detail-row" *ngIf="agent.remarks"><strong>Remarks:</strong> {{ agent.remarks }}</p>
+    <div class="modal-b">
+      <div class="mini-t"><span class="person"><span class="avatar av-sm" [style.background]="ui.avatar(deleteAgent.name).bg" [style.color]="ui.avatar(deleteAgent.name).fg">{{ ui.avatar(deleteAgent.name).ini }}</span>
+        <span><b style="display:block">{{ deleteAgent.name }}</b><span class="muted" style="font-size:12px">{{ deleteAgent.expertise }}</span></span></span></div>
+      <p class="muted" style="font-size:13px;margin-top:10px">Agents who have worked on tickets can’t be deleted — mark them Unavailable instead.</p>
+      <div *ngIf="deleteError" class="alert alert-err" role="alert" style="margin-top:12px"><span class="ic i-alert-circle"></span><div>{{ deleteError }}</div></div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn btn-sec" (click)="deleteAgent = null">Cancel</button><button type="button" class="btn btn-danger" (click)="confirmDelete()">Yes, Delete</button></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toasts" role="status" aria-live="polite">
+  <div *ngIf="toastTitle" class="toast" [ngClass]="toastKind"><span class="t-ic"><span class="ic ic-14" [ngClass]="toastKind === 'err' ? 'i-alert-circle' : (toastKind === 'info' ? 'i-info' : 'i-check')"></span></span>
+    <div class="grow"><div class="tt">{{ toastTitle }}</div><div class="ts">{{ toastText }}</div></div>
+    <button type="button" class="icon-btn sm" style="margin:-4px -4px 0 0;width:26px;height:26px" (click)="toastTitle = ''" aria-label="Dismiss notification"><span class="ic i-x ic-14"></span></button>
   </div>
 </div>

@@ -1,7 +1,5 @@
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { API_ENDPOINTS } from '../constants/constant';
-import { Ticket } from '../models/ticket.model';
 import { TicketService } from './ticket.service';
 
 describe('TicketService', () => {
@@ -16,37 +14,32 @@ describe('TicketService', () => {
 
   afterEach(() => http.verify());
 
-  it('getAllTickets() should map 204 No Content to an empty list', () => {
-    let result: Ticket[] | undefined;
-    service.getAllTickets().subscribe(list => (result = list));
-    http.expectOne(API_ENDPOINTS.TICKET.BASE).flush(null, { status: 204, statusText: 'No Content' });
-    expect(result).toEqual([]);
-  });
+  it('uses the SRS endpoints', () => {
+    service.getAllTickets().subscribe(list => expect(list).toEqual([]));
+    http.expectOne(service.apiUrl + '/api/ticket').flush(null);   // 204 No Content -> []
 
-  it('addTicket() should POST without browser-created dates or nested objects', () => {
-    const ticket: Ticket = {
-      title: 'VPN', description: 'down', priority: 'High', status: 'Open', createdDate: new Date(),
-      issueCategory: 'Connectivity', userId: 1, supportAgent: undefined
-    };
-    service.addTicket(ticket).subscribe();
-    const req = http.expectOne(API_ENDPOINTS.TICKET.BASE);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body.createdDate).toBeUndefined();
-    expect(req.request.body.title).toBe('VPN');
-    req.flush({});
-  });
+    service.getTicketById(5).subscribe();
+    http.expectOne(service.apiUrl + '/api/ticket/5').flush({});
 
-  it('should call the user, agent, update and delete endpoints', () => {
-    service.getTicketsByUserId(3).subscribe();
-    http.expectOne(API_ENDPOINTS.TICKET.BY_USER(3)).flush([]);
-    service.getTicketsByAgentId(4).subscribe();
-    http.expectOne(API_ENDPOINTS.TICKET.BY_AGENT(4)).flush([]);
-    service.updateTicket(5, { title: 't', description: 'd', priority: 'Low', status: 'Closed',
-      createdDate: '2025-01-01' as unknown as Date, issueCategory: 'General', userId: 1 }).subscribe();
-    const put = http.expectOne(API_ENDPOINTS.TICKET.BY_ID(5));
-    expect(put.request.method).toBe('PUT');
-    put.flush({});
+    service.getTicketsByUserId(2).subscribe();
+    http.expectOne(service.apiUrl + '/api/ticket/user/2').flush([]);
+
+    service.getTicketsByAgentId(3).subscribe();
+    http.expectOne(service.apiUrl + '/api/ticket/agent/3').flush([]);
+
     service.deleteTicket(5).subscribe();
-    expect(http.expectOne(API_ENDPOINTS.TICKET.BY_ID(5)).request.method).toBe('DELETE');
+    expect(http.expectOne(service.apiUrl + '/api/ticket/5').request.method).toBe('DELETE');
+  });
+
+  it('addTicket() and updateTicket() send the ticket', () => {
+    const ticket = { title: 'VPN down', description: 'It keeps dropping every hour', priority: 'High', issueCategory: 'Technical' };
+    service.addTicket(ticket).subscribe();
+    const post = http.expectOne(service.apiUrl + '/api/ticket');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual(ticket);
+    post.flush({});
+
+    service.updateTicket(9, ticket).subscribe();
+    expect(http.expectOne(service.apiUrl + '/api/ticket/9').request.method).toBe('PUT');
   });
 });

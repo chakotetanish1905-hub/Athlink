@@ -1,6 +1,23 @@
-<div class="error-page" id="errorPage">
-  <h1 id="errorTitle">{{ info.title }}</h1>
-  <p id="errorMessage">{{ info.message }}</p>
-  <a *ngIf="authService.isLoggedIn(); else loginLink" class="btn btn-primary" routerLink="/home">Go to Home</a>
-  <ng-template #loginLink><a class="btn btn-primary" routerLink="/login">Go to Login</a></ng-template>
+<div class="page">
+  <div *ngIf="code === '404'" class="err-page">
+    <div class="err-ic"><span class="ic i-compass ic-28"></span></div>
+    <span class="err-code">Error 404</span>
+    <h1 class="err-t">Page not found</h1>
+    <p class="err-d">The page you’re looking for doesn’t exist, was moved, or isn’t available for your role.</p>
+    <div class="err-actions">
+      <button type="button" class="btn btn-sec" (click)="goBack()"><span class="ic i-arrow-left"></span>Go back</button>
+      <a class="btn btn-pri" [routerLink]="homeLink">{{ authService.isLoggedIn() ? 'Go to home' : 'Go to login' }}</a>
+    </div>
+  </div>
+
+  <div *ngIf="code !== '404'" class="err-page" role="alert">
+    <div class="err-ic"><span class="ic i-server ic-28"></span></div>
+    <span class="err-code">Error {{ code }}</span>
+    <h1 class="err-t">Something Went Wrong</h1>
+    <p class="err-d">An unexpected error happened on our side. It’s been logged for the team — please try again in a moment.</p>
+    <div class="err-actions">
+      <button type="button" class="btn btn-pri" (click)="goBack()"><span class="ic i-refresh"></span>Try again</button>
+      <a class="btn btn-sec" [routerLink]="homeLink">{{ authService.isLoggedIn() ? 'Go to home' : 'Go to login' }}</a>
+    </div>
+  </div>
 </div>
