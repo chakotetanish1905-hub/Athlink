@@ -1,0 +1,49 @@
+<div class="page">
+  <h2 class="page-title">Add Feedback</h2>
+
+  <div class="form-card">
+    <p class="ticket-ref" *ngIf="ticket">Ticket: <strong>{{ ticket.title }}</strong> ({{ ticket.status }})</p>
+
+    <form id="feedbackForm" [formGroup]="feedbackForm" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-group">
+        <label for="feedbackText">Feedback<span class="required">*</span></label>
+        <textarea id="feedbackText" name="feedbackText" class="form-control" placeholder="Write your feedback here..."
+                  formControlName="feedbackText" [class.is-invalid]="showError('feedbackText')"></textarea>
+        <div class="error-text" *ngIf="showError('feedbackText')">
+          <span *ngIf="hasError('feedbackText', 'required')">*Feedback is required</span>
+          <span *ngIf="hasError('feedbackText', 'maxlength')">*Feedback must not exceed 2000 characters</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="category">Category<span class="required">*</span></label>
+        <select id="category" name="category" class="form-control" formControlName="category"
+                [class.is-invalid]="showError('category')">
+          <option value="" disabled>Choose Category</option>
+          <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+        </select>
+        <div class="error-text" *ngIf="showError('category')">*Category is required</div>
+      </div>
+
+      <div class="form-group">
+        <label for="rating">Rating<span class="required">*</span></label>
+        <select id="rating" name="rating" class="form-control" formControlName="rating"
+                [class.is-invalid]="showError('rating')">
+          <option value="" disabled>Choose Rating</option>
+          <option *ngFor="let r of ratings" [value]="r">{{ r }}</option>
+        </select>
+        <div class="error-text" *ngIf="showError('rating')">
+          <span *ngIf="hasError('rating', 'required')">*Rating is required</span>
+          <span *ngIf="hasError('rating', 'min') || hasError('rating', 'max')">*Rating must be between 1 and 5.</span>
+        </div>
+      </div>
+
+      <div class="form-error" id="feedbackError" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+      <button type="submit" id="submitFeedbackButton" class="btn btn-primary" [disabled]="loading || !ticket">Submit</button>
+    </form>
+  </div>
+</div>
+
+<app-message-dialog *ngIf="showSuccess" message="Feedback Submitted Successfully!" buttonText="OK" [success]="true"
+                    (ok)="onSuccessOk()"></app-message-dialog>

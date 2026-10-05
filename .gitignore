@@ -1,0 +1,12 @@
+# Backend
+springapp/target/
+# Frontend
+angularapp/node_modules/
+angularapp/dist/
+angularapp/.angular/
+angularapp/coverage/
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store

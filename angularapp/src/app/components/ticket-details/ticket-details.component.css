@@ -1,0 +1,11 @@
+.details-page { max-width: 720px; }
+.details-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2b7a99; padding-bottom: 10px; margin-bottom: 18px; }
+.details-header h2 { margin: 0; }
+.details-section { background: #f6f8fa; border-radius: 8px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.ticket-card, .agent-card { background: #fff; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 14px; }
+.ticket-card p, .agent-card p { margin: 5px 0; font-size: 13px; }
+.ticket-num { border-bottom: 2px solid #2b7a99; padding-bottom: 8px; }
+.agent-card { display: flex; align-items: center; justify-content: center; gap: 18px; text-align: left; }
+.arrow-down { width: 0; height: 0; margin: 12px auto; border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 14px solid #3d8fe0; }
+.center { text-align: center; }
+.radio-row { display: flex; justify-content: center; gap: 18px; margin: 12px 0; }

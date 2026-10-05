@@ -1,0 +1,72 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title">Support Agents</h2>
+
+    <div class="toolbar">
+      <div>
+        <label for="searchAgents">Search by:</label>
+        <input id="searchAgents" type="text" placeholder="Agent Name or Expertise..." [(ngModel)]="searchText" />
+      </div>
+      <div>
+        <label for="statusFilter">Filter by Status:</label>
+        <select id="statusFilter" [(ngModel)]="statusFilter">
+          <option value="">All Status</option>
+          <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table" id="agentsTable">
+        <thead>
+          <tr><th>S.No</th><th>Name</th><th>Email</th><th>Phone</th><th>Expertise</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let agent of filteredAgents; let i = index">
+            <td>{{ i + 1 }}</td>
+            <td>{{ agent.name }}</td>
+            <td>{{ agent.email }}</td>
+            <td>{{ agent.phone }}</td>
+            <td>{{ agent.expertise }}</td>
+            <td>{{ agent.status }}</td>
+            <td>
+              <div class="actions">
+                <button type="button" class="btn btn-success btn-pill" (click)="editAgent(agent)">Edit</button>
+                <button type="button" class="btn btn-danger btn-pill" (click)="agentToDelete = agent">Delete</button>
+                <button type="button" class="btn btn-pill" [ngClass]="isAvailable(agent) ? 'btn-warning' : 'btn-teal'"
+                        (click)="toggleStatus(agent)">{{ isAvailable(agent) ? 'Make Unavailable' : 'Make Available' }}</button>
+                <button type="button" class="btn btn-info btn-pill" (click)="profileAgent = agent">View Profile</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && filteredAgents.length === 0">
+            <td colspan="7" class="no-records">Oops! No records found</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<app-confirm-dialog *ngIf="agentToDelete" message="Are you sure you want to delete this agent?" confirmText="Yes, Delete"
+  (confirm)="confirmDelete()" (cancel)="agentToDelete = null"></app-confirm-dialog>
+
+<div class="modal-backdrop" *ngIf="profileAgent as agent" (click)="profileAgent = null">
+  <div class="modal-box profile-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" (click)="profileAgent = null">×</button>
+    <h3>Agent Profile</h3>
+    <div class="profile-image">
+      <img *ngIf="agent.profile; else initials" [src]="agent.profile" [alt]="agent.name" />
+      <ng-template #initials><span class="avatar avatar-placeholder">{{ agent.name.charAt(0) | uppercase }}</span></ng-template>
+    </div>
+    <p class="detail-row"><strong>Name:</strong> {{ agent.name }}</p>
+    <p class="detail-row"><strong>Email:</strong> {{ agent.email }}</p>
+    <p class="detail-row"><strong>Phone:</strong> {{ agent.phone }}</p>
+    <p class="detail-row"><strong>Expertise:</strong> {{ agent.expertise }}</p>
+    <p class="detail-row"><strong>Experience:</strong> {{ agent.experience }}</p>
+    <p class="detail-row"><strong>Shift Timing:</strong> {{ agent.shiftTiming }}</p>
+    <p class="detail-row"><strong>Status:</strong> {{ agent.status }}</p>
+    <p class="detail-row"><strong>Added Date:</strong> {{ agent.addedDate | date: 'yyyy-MM-dd' }}</p>
+    <p class="detail-row" *ngIf="agent.remarks"><strong>Remarks:</strong> {{ agent.remarks }}</p>
+  </div>
+</div>

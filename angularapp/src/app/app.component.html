@@ -1,0 +1,8 @@
+<ng-container *ngIf="authService.loggedIn$ | async">
+  <app-managernav *ngIf="(authService.userRole$ | async) === 'Manager'"></app-managernav>
+  <app-clientnav *ngIf="(authService.userRole$ | async) === 'Client'"></app-clientnav>
+</ng-container>
+<main>
+  <router-outlet></router-outlet>
+</main>
+<app-toast></app-toast>

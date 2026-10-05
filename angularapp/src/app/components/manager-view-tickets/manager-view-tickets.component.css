@@ -1,0 +1,10 @@
+.wide-search { width: 340px; max-width: 100%; }
+.actions.column { flex-direction: column; align-items: center; }
+.assign-title { color: #3d8fe0; }
+.section-label { color: #3d8fe0; margin: 12px 0 6px; font-size: 13px; letter-spacing: 0.5px; }
+.agent-list { list-style: none; padding: 0; margin: 8px 0; }
+.agent-list li { background: #f1f4f8; border-left: 4px solid #24914a; border-radius: 6px; padding: 9px 12px; margin-bottom: 6px; cursor: pointer; }
+.agent-list li:hover, .agent-list li:focus { background: #e3edf9; outline: none; }
+.agent-list li.empty { border-left-color: #b8bcc2; cursor: default; color: #6b7280; }
+.agent-list.scroll { max-height: 200px; overflow-y: auto; }
+.center { text-align: center; }

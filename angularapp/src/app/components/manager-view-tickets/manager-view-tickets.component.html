@@ -1,0 +1,78 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title">Available Tickets</h2>
+
+    <div class="toolbar">
+      <input id="searchTickets" class="wide-search" type="text" placeholder="Search by Ticket Title or Issue Category..."
+             [(ngModel)]="searchText" />
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table" id="managerTicketsTable">
+        <thead>
+          <tr>
+            <th>S.No</th><th>Title</th><th>Description</th><th>Issue Category</th><th>Priority</th>
+            <th>Status</th><th>Agent Assigned</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let ticket of filteredTickets; let i = index">
+            <td>{{ i + 1 }}</td>
+            <td>{{ ticket.title }}</td>
+            <td>{{ ticket.description }}</td>
+            <td>{{ ticket.issueCategory }}</td>
+            <td>{{ ticket.priority }}</td>
+            <td>{{ ticket.status }}</td>
+            <td>{{ ticket.supportAgent ? ticket.supportAgent.name + ' (' + ticket.supportAgent.expertise + ')' : 'Not Assigned' }}</td>
+            <td>
+              <div class="actions column">
+                <button *ngIf="isOpen(ticket) && !ticket.agentId" type="button" class="btn btn-success btn-pill"
+                        (click)="openAssign(ticket)">Assign Agent</button>
+                <span *ngIf="isOpen(ticket) && ticket.agentId" class="badge-success">Agent Assigned</span>
+                <button type="button" class="btn btn-success btn-sm" [disabled]="!canClose(ticket)"
+                        (click)="closeTicket(ticket)">Close Ticket</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && filteredTickets.length === 0">
+            <td colspan="8" class="no-records">Oops! No records found</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="assignTicket" (click)="closeAssign()">
+  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" (click)="closeAssign()">×</button>
+    <h3 class="assign-title">Assign Agent</h3>
+    <p>Select an agent to assign to <strong>{{ assignTicket.title }}</strong>:</p>
+
+    <h4 class="section-label">SUGGESTED AGENTS</h4>
+    <p *ngIf="suggestedAgents.length === 0" id="noSuggestedAgents">No suggested agents available for this issue.</p>
+    <ul class="agent-list">
+      <li *ngFor="let agent of suggestedAgents" (click)="assign(agent)" (keyup.enter)="assign(agent)" tabindex="0">
+        {{ agent.name }} ({{ agent.expertise }})
+      </li>
+    </ul>
+
+    <p class="center">
+      <button type="button" class="btn-link" id="manualSelectToggle" (click)="showManualSelect = !showManualSelect">
+        {{ showManualSelect ? 'Hide Manual Select' : 'Manual Select' }}
+      </button>
+    </p>
+
+    <ng-container *ngIf="showManualSelect">
+      <h4 class="section-label">MANUAL SELECT</h4>
+      <input id="manualSearch" class="form-control" type="text" placeholder="Search by Name or Expertise..."
+             [(ngModel)]="manualSearch" />
+      <ul class="agent-list scroll">
+        <li *ngFor="let agent of manualAgents" (click)="assign(agent)" (keyup.enter)="assign(agent)" tabindex="0">
+          {{ agent.name }} ({{ agent.expertise }})
+        </li>
+        <li *ngIf="manualAgents.length === 0" class="empty">No available agents found.</li>
+      </ul>
+    </ng-container>
+  </div>
+</div>

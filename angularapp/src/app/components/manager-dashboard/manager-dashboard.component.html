@@ -1,0 +1,39 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title dashboard-title">Dashboard</h2>
+
+    <div class="stats">
+      <div class="stat-card" id="happyClientsCard">
+        <h3>Happy Clients</h3>
+        <p class="stat-value" id="happyClientsCount">{{ happyClients }}</p>
+      </div>
+      <div class="stat-card" id="unhappyClientsCard">
+        <h3>Unhappy Clients</h3>
+        <p class="stat-value" id="unhappyClientsCount">{{ unhappyClients }}</p>
+      </div>
+    </div>
+
+    <h3 class="summary-title">Tickets Summary</h3>
+    <div class="table-wrapper">
+      <table class="data-table summary-table" id="ticketsSummaryTable">
+        <thead><tr><th>Ticket ID</th><th>Title</th><th>Status</th><th>Satisfaction</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let ticket of tickets">
+            <td>{{ ticket.ticketId }}</td>
+            <td>{{ ticket.title }}</td>
+            <td>{{ ticket.status }}</td>
+            <td>
+              <ng-container *ngIf="isFinished(ticket); else pending">
+                {{ ticket.satisfied === true ? '😊 Happy' : ticket.satisfied === false ? '😞 Unhappy' : 'Not Rated' }}
+              </ng-container>
+              <ng-template #pending><span class="italic text-muted">Pending Resolution</span></ng-template>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && tickets.length === 0">
+            <td colspan="4" class="no-records">No Tickets Available</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

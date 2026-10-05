@@ -1,0 +1,85 @@
+<div class="page details-page">
+  <div class="card">
+    <div class="details-header">
+      <h2>Ticket Details</h2>
+      <button type="button" id="backButton" class="btn btn-info btn-sm" (click)="goBack()">← Back</button>
+    </div>
+
+    <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+    <ng-container *ngIf="ticket">
+      <section class="details-section">
+        <div class="ticket-card" id="ticketCard">
+          <h3 class="ticket-num">Ticket Num:{{ ticket.ticketId }}</h3>
+          <h3>{{ ticket.title }}</h3>
+          <p><strong>Description:</strong> {{ ticket.description }}</p>
+          <p><strong>Issue Category:</strong> {{ ticket.issueCategory }}</p>
+          <p><strong>Priority:</strong> {{ ticket.priority }}</p>
+          <p><strong>Status:</strong> {{ ticket.status }}</p>
+          <p><strong>Created Date:</strong> {{ ticket.createdDate | date: 'yyyy-MM-dd' }}</p>
+          <p><strong>Resolution Date:</strong>
+            {{ ticket.resolutionDate ? (ticket.resolutionDate | date: 'yyyy-MM-dd') : 'Not Resolved' }}</p>
+        </div>
+
+        <div class="modal-actions">
+          <button *ngIf="!isResolvedOrClosed" type="button" id="provideSummaryButton" class="btn btn-info"
+                  (click)="openSummary()">Provide Summary</button>
+          <button *ngIf="isResolvedOrClosed" type="button" id="viewSummaryButton" class="btn btn-info"
+                  (click)="showViewSummary = true">View Summary</button>
+          <button type="button" id="markResolvedButton" class="btn btn-success" [disabled]="isResolvedOrClosed"
+                  (click)="markAsResolved()">Mark as Resolved</button>
+        </div>
+      </section>
+
+      <div class="arrow-down" *ngIf="ticket.supportAgent"></div>
+
+      <section class="details-section" *ngIf="ticket.supportAgent as agent">
+        <h3 class="center">Assigned Agent</h3>
+        <div class="agent-card" id="assignedAgentCard">
+          <img *ngIf="agent.profile; else initials" class="avatar" [src]="agent.profile" [alt]="agent.name" />
+          <ng-template #initials><span class="avatar avatar-placeholder">{{ agent.name.charAt(0) | uppercase }}</span></ng-template>
+          <div>
+            <p><strong>Name:</strong> {{ agent.name }}</p>
+            <p><strong>Email:</strong> {{ agent.email }}</p>
+            <p><strong>Phone:</strong> {{ agent.phone }}</p>
+            <p><strong>Expertise:</strong> {{ agent.expertise }}</p>
+            <p><strong>Status:</strong> {{ agent.status }}</p>
+          </div>
+        </div>
+      </section>
+    </ng-container>
+  </div>
+</div>
+
+<!-- Provide Resolution Summary -->
+<div class="modal-backdrop" *ngIf="showSummaryModal">
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <button type="button" class="modal-close" aria-label="Close" (click)="showSummaryModal = false">×</button>
+    <h3>Provide Resolution Summary</h3>
+    <label for="resolutionSummary" class="sr-only">Resolution Summary *</label>
+    <textarea id="resolutionSummary" class="form-control" placeholder="Resolution Summary..." maxlength="2000"
+              [(ngModel)]="summaryText"></textarea>
+    <div class="radio-row">
+      <label><input type="radio" id="satisfied" name="satisfaction" value="satisfied" [(ngModel)]="satisfaction" /> 😊 Satisfied</label>
+      <label><input type="radio" id="notSatisfied" name="satisfaction" value="notSatisfied" [(ngModel)]="satisfaction" /> 😞 Not Satisfied</label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="submitSummaryButton" class="btn btn-grey" (click)="submitSummary()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<app-confirm-dialog *ngIf="showConfirmSummary" message="Are you sure you want to submit this summary?"
+  confirmText="Yes! Confirm" confirmClass="btn-grey" cancelText="Cancel"
+  (confirm)="confirmSummary()" (cancel)="showConfirmSummary = false"></app-confirm-dialog>
+
+<!-- View Resolution Summary -->
+<div class="modal-backdrop" *ngIf="showViewSummary && ticket">
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <button type="button" class="modal-close" aria-label="Close" (click)="showViewSummary = false">×</button>
+    <h3>View Resolution Summary</h3>
+    <textarea class="form-control" readonly>{{ ticket.resolutionSummary || 'No summary provided.' }}</textarea>
+    <p class="center"><strong>Satisfaction:</strong>
+      {{ ticket.satisfied === true ? '😊 Satisfied' : ticket.satisfied === false ? '😞 Not Satisfied' : 'Not provided' }}</p>
+  </div>
+</div>

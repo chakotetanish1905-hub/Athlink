@@ -1,0 +1,21 @@
+.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f1f1f1; padding: 20px; }
+.auth-container { display: flex; width: 100%; max-width: 820px; min-height: 480px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+.auth-image {
+  flex: 1;
+  /* background.webp goes in src/assets/images; the gradient shows until it is added. */
+  background: url("/assets/images/background.webp") center / cover no-repeat,
+              linear-gradient(160deg, #c0763f 0%, #4f7ea8 55%, #1e3550 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-image h1 { color: #fff; font-size: 34px; margin: 0; padding: 6px 16px; background: rgba(0,0,0,0.35); border-radius: 6px; text-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+.auth-form-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.auth-form { width: 100%; max-width: 300px; padding: 20px 22px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.12); }
+.auth-form h2 { text-align: center; margin: 0 0 4px; font-size: 20px; }
+.tagline { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #1a7ce6; background: #e8f2fd; padding: 3px; margin: 0 0 12px; border-bottom: 2px solid #1a7ce6; }
+.auth-input { width: 100%; border: none; border-bottom: 1px solid #ccc; padding: 9px 4px; font-size: 13px; outline: none; background: transparent; font-family: inherit; }
+.auth-input:focus { border-bottom-color: #1a7ce6; }
+.field { margin-bottom: 8px; position: relative; }
+.password-toggle { position: absolute; right: 2px; top: 6px; background: none; border: none; cursor: pointer; font-size: 14px; color: #666; }
+.auth-submit { margin-top: 12px; }
+.switch-link { text-align: center; font-size: 12px; margin-top: 10px; }
+@media (max-width: 700px) { .auth-container { flex-direction: column; } .auth-image { min-height: 160px; } }

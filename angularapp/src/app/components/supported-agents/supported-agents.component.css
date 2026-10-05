@@ -1,0 +1,9 @@
+.agent-name { color: #2b7a99; margin: 6px 0; }
+.info-card p { margin: 4px 0; font-size: 13px; }
+.info-card button { margin-top: 10px; }
+.center { text-align: center; }
+.ticket-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.ticket-card { background: #f6f8fa; border-radius: 8px; padding: 14px; }
+.ticket-card h4 { color: #2b7a99; margin: 0 0 8px; }
+.ticket-card p { margin: 4px 0; font-size: 13px; }
+.ticket-card button { margin-top: 10px; }

@@ -1,0 +1,39 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title">Supported Agents</h2>
+
+    <p *ngIf="!loading && agents.length === 0" id="noAgentsMessage">No supported agents found for your tickets.</p>
+
+    <div class="card-grid" id="supportedAgentsList">
+      <div class="info-card" *ngFor="let agent of agents">
+        <img *ngIf="agent.profile; else initials" class="avatar" [src]="agent.profile" [alt]="agent.name" />
+        <ng-template #initials><span class="avatar avatar-placeholder">{{ agent.name.charAt(0) | uppercase }}</span></ng-template>
+        <h3 class="agent-name">{{ agent.name }}</h3>
+        <p><strong>Email:</strong> {{ agent.email }}</p>
+        <p><strong>Phone:</strong> {{ agent.phone }}</p>
+        <p><strong>Expertise:</strong> {{ agent.expertise }}</p>
+        <p><strong>Status:</strong> {{ agent.status }}</p>
+        <button type="button" class="btn btn-info btn-sm" (click)="showTicketsWorked(agent)">Tickets Worked</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="selectedAgent" (click)="closeModal()">
+  <div class="modal-box modal-wide" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" (click)="closeModal()">×</button>
+    <h3>Tickets Worked By Agent</h3>
+    <p class="center" *ngIf="ticketsLoading">Loading...</p>
+    <p class="center" *ngIf="!ticketsLoading && agentTickets.length === 0">No tickets found for this agent.</p>
+    <div class="ticket-grid">
+      <div class="ticket-card" *ngFor="let ticket of agentTickets">
+        <h4>{{ ticket.title }}</h4>
+        <p><strong>Description:</strong> {{ ticket.description }}</p>
+        <p><strong>Status:</strong> {{ ticket.status }}</p>
+        <p><strong>Summary:</strong> {{ ticket.resolutionSummary || 'Not Provided' }}</p>
+        <button type="button" class="btn btn-success btn-sm" [disabled]="!canReview(ticket)"
+                (click)="writeReview(ticket)">Write a Review</button>
+      </div>
+    </div>
+  </div>
+</div>

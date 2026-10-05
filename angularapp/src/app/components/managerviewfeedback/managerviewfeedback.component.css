@@ -1,0 +1,5 @@
+.filter-row { text-align: center; margin-bottom: 14px; }
+.filter-row label { font-weight: 700; margin-right: 8px; }
+.filter-row select { padding: 6px 10px; border: 1px solid #dfe3e8; border-radius: 6px; }
+.left { text-align: left !important; }
+.modal-close.dark { color: #444; }

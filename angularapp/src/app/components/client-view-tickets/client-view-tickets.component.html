@@ -1,0 +1,57 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title">Your Tickets</h2>
+
+    <div class="toolbar">
+      <div>
+        <label for="searchTickets">Search by:</label>
+        <input id="searchTickets" type="text" placeholder="Ticket Title or Issue Category" [(ngModel)]="searchText" />
+      </div>
+      <div>
+        <label for="priorityFilter">Filter by Priority:</label>
+        <select id="priorityFilter" [(ngModel)]="priorityFilter">
+          <option value="">All Priorities</option>
+          <option *ngFor="let p of priorities" [value]="p">{{ p }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table" id="clientTicketsTable">
+        <thead>
+          <tr>
+            <th>S.No</th><th>Title</th><th>Issue Category</th><th>Priority</th><th>Created Date</th>
+            <th>Ticket Status</th><th>Resolution Date</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let ticket of filteredTickets; let i = index">
+            <td>{{ i + 1 }}</td>
+            <td>{{ ticket.title }}</td>
+            <td>{{ ticket.issueCategory }}</td>
+            <td>{{ ticket.priority }}</td>
+            <td>{{ ticket.createdDate | date: 'yyyy-MM-dd' }}</td>
+            <td>{{ ticket.status }}</td>
+            <td>{{ ticket.resolutionDate ? (ticket.resolutionDate | date: 'yyyy-MM-dd') : 'Not Resolved' }}</td>
+            <td>
+              <div class="actions">
+                <button type="button" class="btn btn-success btn-pill" [disabled]="!canModify(ticket)"
+                        (click)="editTicket(ticket)">Edit</button>
+                <button type="button" class="btn btn-danger btn-pill" [disabled]="!canModify(ticket)"
+                        (click)="ticketToDelete = ticket">Delete</button>
+                <button *ngIf="ticket.agentId" type="button" class="btn btn-info btn-pill"
+                        (click)="viewAgent(ticket)">View Agent</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && filteredTickets.length === 0">
+            <td colspan="8" class="no-records">Oops! No records found</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<app-confirm-dialog *ngIf="ticketToDelete" message="Are you sure you want to delete this ticket?"
+  confirmText="Yes, Delete" (confirm)="confirmDelete()" (cancel)="ticketToDelete = null"></app-confirm-dialog>

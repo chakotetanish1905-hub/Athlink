@@ -1,0 +1,75 @@
+<div class="page">
+  <div class="card">
+    <h2 class="page-title">Feedback Received</h2>
+
+    <div class="filter-row">
+      <label for="categoryFilter">Filter by Category:</label>
+      <select id="categoryFilter" [(ngModel)]="categoryFilter">
+        <option value="">All Categories</option>
+        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table" id="feedbackReceivedTable">
+        <thead>
+          <tr><th>S.No</th><th>User Name</th><th>Feedback</th><th>Rating</th><th>Posted Date</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let feedback of filteredFeedbacks; let i = index">
+            <td>{{ i + 1 }}</td>
+            <td>{{ feedback.user?.username }}</td>
+            <td>{{ feedback.feedbackText }}</td>
+            <td>{{ feedback.rating }}</td>
+            <td>{{ feedback.date | date: 'dd/MM/yyyy' }}</td>
+            <td>
+              <div class="actions">
+                <button type="button" class="btn btn-info btn-pill" (click)="userInfo = feedback">Show User Profile</button>
+                <button type="button" class="btn btn-info btn-pill" [disabled]="!feedback.supportAgent"
+                        (click)="agentInfo = feedback">Show Agent Profile</button>
+                <button type="button" class="btn btn-info btn-pill" (click)="ticketInfo = feedback">Show Ticket</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && filteredFeedbacks.length === 0">
+            <td colspan="6" class="no-records">No data found</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="userInfo?.user as user" (click)="userInfo = null">
+  <div class="modal-box modal-small left" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <h3 class="left">User Details:</h3>
+    <p class="detail-row">Email: {{ user.email }}</p>
+    <p class="detail-row">Username: {{ user.username }}</p>
+    <p class="detail-row">Mobile Number: {{ user.mobileNumber }}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-info btn-pill" id="closeUserModal" (click)="userInfo = null">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="agentInfo?.supportAgent as agent" (click)="agentInfo = null">
+  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close dark" aria-label="Close" (click)="agentInfo = null">×</button>
+    <h3 class="left">Agent Details</h3>
+    <p class="detail-row"><strong>Name:</strong> {{ agent.name }}</p>
+    <p class="detail-row"><strong>Expertise:</strong> {{ agent.expertise }}</p>
+    <p class="detail-row"><strong>Email:</strong> {{ agent.email }}</p>
+    <p class="detail-row"><strong>Phone:</strong> {{ agent.phone }}</p>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="ticketInfo?.ticket as ticket" (click)="ticketInfo = null">
+  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close dark" aria-label="Close" (click)="ticketInfo = null">×</button>
+    <h3 class="left">Ticket Details</h3>
+    <p class="detail-row"><strong>Title:</strong> {{ ticket.title }}</p>
+    <p class="detail-row"><strong>Description:</strong> {{ ticket.description }}</p>
+    <p class="detail-row"><strong>Priority:</strong> {{ ticket.priority }}</p>
+    <p class="detail-row"><strong>Status:</strong> {{ ticket.status }}</p>
+  </div>
+</div>

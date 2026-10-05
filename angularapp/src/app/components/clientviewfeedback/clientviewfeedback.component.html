@@ -1,0 +1,54 @@
+<div class="page">
+  <h2 class="page-title">My Feedback</h2>
+
+  <div class="table-wrapper">
+    <table class="data-table" id="myFeedbackTable">
+      <thead>
+        <tr><th>S.No</th><th>Feedback</th><th>Rating</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let feedback of feedbacks; let i = index">
+          <td>{{ i + 1 }}</td>
+          <td>{{ feedback.feedbackText }}</td>
+          <td>{{ feedback.rating }}</td>
+          <td>
+            <div class="actions">
+              <button type="button" class="btn btn-success btn-sm" [disabled]="!feedback.supportAgent"
+                      (click)="agentInfo = feedback">View Agent Info</button>
+              <button type="button" class="btn btn-success btn-sm" (click)="ticketInfo = feedback">View Ticket Info</button>
+              <button type="button" class="btn btn-info btn-sm" (click)="feedbackToDelete = feedback">Delete</button>
+            </div>
+          </td>
+        </tr>
+        <tr *ngIf="!loading && feedbacks.length === 0">
+          <td colspan="4" class="no-records">No data found</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="ticketInfo?.ticket as ticket" (click)="ticketInfo = null">
+  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" (click)="ticketInfo = null">×</button>
+    <h3 class="left">Ticket Details</h3>
+    <p class="detail-row"><strong>Title:</strong> {{ ticket.title }}</p>
+    <p class="detail-row"><strong>Description:</strong> {{ ticket.description }}</p>
+    <p class="detail-row"><strong>Priority:</strong> {{ ticket.priority }}</p>
+    <p class="detail-row"><strong>Status:</strong> {{ ticket.status }}</p>
+  </div>
+</div>
+
+<div class="modal-backdrop" *ngIf="agentInfo?.supportAgent as agent" (click)="agentInfo = null">
+  <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" (click)="agentInfo = null">×</button>
+    <h3 class="left">Agent Details</h3>
+    <p class="detail-row"><strong>Agent Name:</strong> {{ agent.name }}</p>
+    <p class="detail-row"><strong>Expertise:</strong> {{ agent.expertise }}</p>
+    <p class="detail-row"><strong>Email:</strong> {{ agent.email }}</p>
+    <p class="detail-row"><strong>Phone Number:</strong> {{ agent.phone }}</p>
+  </div>
+</div>
+
+<app-confirm-dialog *ngIf="feedbackToDelete" message="Are you sure you want to delete?" confirmText="Yes, Delete"
+  (confirm)="confirmDelete()" (cancel)="feedbackToDelete = null"></app-confirm-dialog>

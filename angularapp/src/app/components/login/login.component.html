@@ -1,0 +1,40 @@
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-image"><h1>SupportSphere</h1></div>
+
+    <div class="auth-form-wrapper">
+      <form class="auth-form" id="loginForm" [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate>
+        <h2>Log In</h2>
+
+        <div class="field">
+          <label for="email" class="sr-only">Email <span class="required">*</span></label>
+          <input id="email" name="email" type="email" class="auth-input" placeholder="Email *"
+                 formControlName="email" autocomplete="username" />
+          <div class="error-text" *ngIf="showError('email')">
+            <span *ngIf="hasError('email', 'required')">Email address is required</span>
+            <span *ngIf="hasError('email', 'pattern')">Please enter a valid email address</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password" class="sr-only">Password <span class="required">*</span></label>
+          <input id="password" name="password" class="auth-input" placeholder="Password *"
+                 [type]="showPassword ? 'text' : 'password'" formControlName="password" autocomplete="current-password" />
+          <button type="button" class="password-toggle" (click)="showPassword = !showPassword"
+                  [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">👁</button>
+          <div class="error-text" *ngIf="showError('password')">
+            <span *ngIf="hasError('password', 'required')">Password is required</span>
+            <span *ngIf="hasError('password', 'minlength')">Password must be at least {{ passwordMinLength }} characters long</span>
+          </div>
+        </div>
+
+        <div class="form-error" id="loginError" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+        <button type="submit" id="loginButton" class="btn btn-primary btn-block auth-submit" [disabled]="loading">
+          {{ loading ? 'Logging In...' : 'Log In' }}
+        </button>
+        <p class="switch-link">Don't have an account? <a id="signupLink" routerLink="/signup">Sign Up</a></p>
+      </form>
+    </div>
+  </div>
+</div>

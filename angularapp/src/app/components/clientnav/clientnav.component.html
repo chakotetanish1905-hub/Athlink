@@ -1,0 +1,26 @@
+<nav class="navbar" id="clientNavbar">
+  <a class="brand" routerLink="/home">SupportSphere</a>
+  <span class="user-badge" id="userBadge">{{ authService.username$ | async }} / {{ authService.userRole$ | async }}</span>
+  <ul class="nav-links">
+    <li><a id="homeLink" routerLink="/home" routerLinkActive="active">Home</a></li>
+    <li class="has-dropdown">
+      <a id="ticketsLink" tabindex="0">Tickets</a>
+      <ul class="dropdown">
+        <li><a id="addTicketLink" routerLink="/client/tickets/add">Add Ticket</a></li>
+        <li><a id="viewTicketsLink" routerLink="/client/tickets">View Tickets</a></li>
+      </ul>
+    </li>
+    <li><a id="viewAgentsLink" routerLink="/client/agents" routerLinkActive="active">View Agents</a></li>
+    <li class="has-dropdown">
+      <a id="feedbacksLink" tabindex="0">Feedbacks</a>
+      <ul class="dropdown">
+        <li><a id="myFeedbacksLink" routerLink="/client/feedbacks">My Feedbacks</a></li>
+      </ul>
+    </li>
+    <li><button type="button" id="logoutButton" class="logout-btn" (click)="showLogoutConfirm = true">Logout</button></li>
+  </ul>
+</nav>
+
+<app-confirm-dialog *ngIf="showLogoutConfirm"
+  message="Are you sure you want to logout?" confirmText="Yes, Logout" confirmClass="btn-success"
+  (confirm)="confirmLogout()" (cancel)="showLogoutConfirm = false"></app-confirm-dialog>

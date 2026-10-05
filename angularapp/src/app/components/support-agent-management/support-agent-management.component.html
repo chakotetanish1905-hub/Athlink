@@ -1,0 +1,86 @@
+<div class="form-card">
+  <button *ngIf="isEditMode" type="button" id="backButton" class="btn btn-info btn-sm back-button" (click)="goBack()">Back</button>
+  <h2 id="agentFormTitle">{{ isEditMode ? 'Edit Support Agent' : 'Add New Support Agent' }}</h2>
+
+  <form id="agentForm" [formGroup]="agentForm" (ngSubmit)="onSubmit()" novalidate>
+    <div class="form-group">
+      <label for="name">Name<span class="required">*</span></label>
+      <input id="name" name="name" class="form-control" formControlName="name" [class.is-invalid]="showError('name')" />
+      <div class="error-text" *ngIf="showError('name')">
+        <span *ngIf="hasError('name', 'required')">*Name is required</span>
+        <span *ngIf="hasError('name', 'maxlength')">*Name must not exceed 100 characters</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email<span class="required">*</span></label>
+      <input id="email" name="email" type="email" class="form-control" formControlName="email" [class.is-invalid]="showError('email')" />
+      <div class="error-text" *ngIf="showError('email')">
+        <span *ngIf="hasError('email', 'required')">*Email is required</span>
+        <span *ngIf="hasError('email', 'pattern')">*Enter a valid email address.</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="phone">Phone<span class="required">*</span></label>
+      <input id="phone" name="phone" class="form-control" maxlength="10" formControlName="phone" [class.is-invalid]="showError('phone')" />
+      <div class="error-text" *ngIf="showError('phone')">
+        <span *ngIf="hasError('phone', 'required')">*Phone number is required</span>
+        <span *ngIf="hasError('phone', 'pattern')">*Phone number must be 10 digits</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="expertise">Expertise<span class="required">*</span></label>
+      <select id="expertise" name="expertise" class="form-control" formControlName="expertise" [class.is-invalid]="showError('expertise')">
+        <option value="" disabled>Select Expertise</option>
+        <option *ngFor="let e of expertiseOptions" [value]="e">{{ e }}</option>
+      </select>
+      <div class="error-text" *ngIf="showError('expertise')">*Expertise is required</div>
+    </div>
+
+    <div class="form-group">
+      <label for="experience">Experience<span class="required">*</span></label>
+      <input id="experience" name="experience" class="form-control" placeholder="e.g. 3 years" formControlName="experience"
+             [class.is-invalid]="showError('experience')" />
+      <div class="error-text" *ngIf="showError('experience')">
+        <span *ngIf="hasError('experience', 'required')">*Experience is required</span>
+        <span *ngIf="hasError('experience', 'maxlength')">*Experience must not exceed 50 characters</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="shiftTiming">Shift Timing<span class="required">*</span></label>
+      <input id="shiftTiming" name="shiftTiming" class="form-control" placeholder="e.g. 9 AM - 6 PM" formControlName="shiftTiming"
+             [class.is-invalid]="showError('shiftTiming')" />
+      <div class="error-text" *ngIf="showError('shiftTiming')">
+        <span *ngIf="hasError('shiftTiming', 'required')">*Shift timing is required</span>
+        <span *ngIf="hasError('shiftTiming', 'maxlength')">*Shift timing must not exceed 50 characters</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="remarks">Remarks</label>
+      <textarea id="remarks" name="remarks" class="form-control" formControlName="remarks"></textarea>
+      <div class="error-text" *ngIf="showError('remarks')">*Remarks must not exceed 1000 characters</div>
+    </div>
+
+    <div class="form-group">
+      <label for="profile">Profile (Image)<span class="required" *ngIf="!isEditMode">*</span></label>
+      <input id="profile" name="profile" type="file" accept="image/*" class="form-control" (change)="onFileSelected($event)" />
+      <div class="hint" *ngIf="isEditMode">Leave empty to keep the current image.</div>
+      <div class="error-text" *ngIf="profileError">*{{ profileError }}</div>
+      <div class="error-text" *ngIf="!profileError && showError('profile')">*Profile image is required</div>
+    </div>
+
+    <div class="form-error" id="agentFormError" *ngIf="formMessage">*{{ formMessage }}</div>
+
+    <div class="form-actions">
+      <button type="submit" id="submitAgentButton" class="btn btn-primary" [disabled]="loading || agentForm.disabled">
+        {{ isEditMode ? 'Update Agent' : 'Add Agent' }}
+      </button>
+    </div>
+  </form>
+</div>
+
+<app-message-dialog *ngIf="successMessage" [message]="successMessage" buttonText="Ok" (ok)="onSuccessOk()"></app-message-dialog>

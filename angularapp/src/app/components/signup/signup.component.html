@@ -1,0 +1,75 @@
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-image"><h1>SupportSphere</h1></div>
+
+    <div class="auth-form-wrapper">
+      <form class="auth-form" id="signupForm" [formGroup]="signupForm" (ngSubmit)="onSubmit()" novalidate>
+        <h2>Sign Up</h2>
+        <p class="tagline">JOIN SUPPORTSPHERE TODAY</p>
+
+        <div class="field">
+          <input id="username" name="username" class="auth-input" placeholder="User name *" formControlName="username" />
+          <div class="error-text" *ngIf="showError('username')">
+            <span *ngIf="hasError('username', 'required')">Username is required</span>
+            <span *ngIf="hasError('username', 'minlength')">Username must be at least 3 characters long</span>
+            <span *ngIf="hasError('username', 'maxlength')">Username must not exceed 50 characters</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <input id="email" name="email" type="email" class="auth-input" placeholder="Email *" formControlName="email" />
+          <div class="error-text" *ngIf="showError('email')">
+            <span *ngIf="hasError('email', 'required')">Email is required</span>
+            <span *ngIf="hasError('email', 'pattern')">Please enter a valid email address</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <input id="mobileNumber" name="mobileNumber" class="auth-input" placeholder="Mobile *" maxlength="10"
+                 formControlName="mobileNumber" />
+          <div class="error-text" *ngIf="showError('mobileNumber')">
+            <span *ngIf="hasError('mobileNumber', 'required')">Mobile number is required</span>
+            <span *ngIf="hasError('mobileNumber', 'pattern')">Mobile number must be 10 digits</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <input id="password" name="password" type="password" class="auth-input" placeholder="Password *"
+                 formControlName="password" autocomplete="new-password" />
+          <div class="error-text" *ngIf="showError('password')">
+            <span *ngIf="hasError('password', 'required')">Password is required</span>
+            <span *ngIf="hasError('password', 'minlength')">Password must be at least {{ passwordMinLength }} characters long</span>
+            <span *ngIf="hasError('password', 'maxlength')">Password must not exceed 64 characters</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <input id="confirmPassword" name="confirmPassword" type="password" class="auth-input"
+                 placeholder="Confirm password *" formControlName="confirmPassword" autocomplete="new-password" />
+          <div class="error-text" *ngIf="showError('confirmPassword')">
+            <span *ngIf="hasError('confirmPassword', 'required')">Confirm password is required</span>
+          </div>
+          <div class="error-text" *ngIf="passwordMismatch">Passwords do not match</div>
+        </div>
+
+        <div class="field">
+          <select id="userRole" name="userRole" class="auth-input" formControlName="userRole">
+            <option value="" disabled>Select Role *</option>
+            <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
+          </select>
+          <div class="error-text" *ngIf="showError('userRole')">User role is required</div>
+        </div>
+
+        <div class="form-error" id="signupError" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+        <button type="submit" id="signupButton" class="btn btn-primary btn-block auth-submit" [disabled]="loading">
+          {{ loading ? 'Signing Up...' : 'Sign Up' }}
+        </button>
+        <p class="switch-link">Already have an account? <a id="loginLink" routerLink="/login">Log In</a></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<app-message-dialog *ngIf="showSuccess" message="Registration Successful!" buttonText="Log In"
+                    (ok)="goToLogin()"></app-message-dialog>

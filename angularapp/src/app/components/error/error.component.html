@@ -1,0 +1,6 @@
+<div class="error-page" id="errorPage">
+  <h1 id="errorTitle">{{ info.title }}</h1>
+  <p id="errorMessage">{{ info.message }}</p>
+  <a *ngIf="authService.isLoggedIn(); else loginLink" class="btn btn-primary" routerLink="/home">Go to Home</a>
+  <ng-template #loginLink><a class="btn btn-primary" routerLink="/login">Go to Login</a></ng-template>
+</div>
