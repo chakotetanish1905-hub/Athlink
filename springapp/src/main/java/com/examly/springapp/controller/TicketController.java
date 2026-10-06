@@ -1,7 +1,7 @@
 package com.examly.springapp.controller;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.examly.springapp.config.UserPrinciple;
 import com.examly.springapp.model.Ticket;
+import com.examly.springapp.model.TicketStatus;
 import com.examly.springapp.model.User;
 import com.examly.springapp.service.TicketService;
 
@@ -52,10 +53,7 @@ public class TicketController {
     @GetMapping("/{ticketId}")
     public ResponseEntity<Ticket> getTicketById(@PathVariable Long ticketId,
             @AuthenticationPrincipal UserPrinciple currentUser) {
-        Ticket ticket = ticketService.getTicketById(ticketId).orElse(null);
-        if (ticket == null) {
-            return ResponseEntity.notFound().build();
-        }
+        Ticket ticket = findTicket(ticketId);
         checkOwner(ticket, currentUser);
         return ResponseEntity.ok(ticket);
     }
@@ -81,10 +79,7 @@ public class TicketController {
     @PutMapping("/{ticketId}")
     public ResponseEntity<Ticket> updateTicket(@PathVariable Long ticketId, @Valid @RequestBody Ticket ticket,
             @AuthenticationPrincipal UserPrinciple currentUser) {
-        Ticket existing = ticketService.getTicketById(ticketId).orElse(null);
-        if (existing == null) {
-            return ResponseEntity.notFound().build();
-        }
+        Ticket existing = findTicket(ticketId);
 
         if (currentUser.isManager()) {
             // A manager only assigns agents and changes the status, so keep the client's fields as they are
@@ -98,10 +93,10 @@ public class TicketController {
             checkOwner(existing, currentUser);
             // A client cannot assign an agent, close a ticket or set it to In Progress
             ticket.setSupportAgent(existing.getSupportAgent());
-            String newStatus = ticket.getStatus();
-            boolean statusChanged = newStatus != null && !newStatus.equals(existing.getStatus());
-            if (statusChanged && ("Closed".equals(newStatus) || "In Progress".equals(newStatus))) {
-                throw new AccessDeniedException("Only a manager can change the ticket to " + newStatus);
+            TicketStatus newStatus = ticket.getStatus();
+            boolean statusChanged = newStatus != null && newStatus != existing.getStatus();
+            if (statusChanged && (newStatus == TicketStatus.CLOSED || newStatus == TicketStatus.IN_PROGRESS)) {
+                throw new AccessDeniedException("Only a manager can change the ticket to " + newStatus.getLabel());
             }
         }
 
@@ -113,10 +108,7 @@ public class TicketController {
     @DeleteMapping("/{ticketId}")
     public ResponseEntity<Ticket> deleteTicket(@PathVariable Long ticketId,
             @AuthenticationPrincipal UserPrinciple currentUser) {
-        Ticket existing = ticketService.getTicketById(ticketId).orElse(null);
-        if (existing == null) {
-            return ResponseEntity.notFound().build();
-        }
+        Ticket existing = findTicket(ticketId);
         checkOwner(existing, currentUser);
 
         Ticket deletedTicket = ticketService.deleteTicket(ticketId);
@@ -137,15 +129,14 @@ public class TicketController {
     @GetMapping("/agent/{agentId}")
     public ResponseEntity<List<Ticket>> getTicketsByAgentId(@PathVariable Long agentId,
             @AuthenticationPrincipal UserPrinciple currentUser) {
-        List<Ticket> agentTickets = ticketService.getTicketsByAgentId(agentId);
+        // The query only returns this client's tickets, so no other client's data is loaded
+        return ResponseEntity.ok(ticketService.getTicketsByAgentIdForUser(agentId, currentUser.getUserId()));
+    }
 
-        List<Ticket> myTickets = new ArrayList<>();
-        for (Ticket ticket : agentTickets) {
-            if (ticket.getUser().getUserId().equals(currentUser.getUserId())) {
-                myTickets.add(ticket);
-            }
-        }
-        return ResponseEntity.ok(myTickets);
+    // 404 (standard error body, saved in ErrorLogs) when the ticket does not exist
+    private Ticket findTicket(Long ticketId) {
+        return ticketService.getTicketById(ticketId)
+                .orElseThrow(() -> new NoSuchElementException("Ticket not found with id " + ticketId));
     }
 
     // Throws 403 when a client tries to use somebody else's ticket.

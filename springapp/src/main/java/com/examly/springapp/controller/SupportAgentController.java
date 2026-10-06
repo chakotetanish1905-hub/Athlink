@@ -1,6 +1,7 @@
 package com.examly.springapp.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,10 +40,8 @@ public class SupportAgentController {
     // Manager and Client: 200 with the agent, 404 if not found
     @GetMapping("/{agentId}")
     public ResponseEntity<SupportAgent> getSupportAgentById(@PathVariable Long agentId) {
-        SupportAgent agent = supportAgentService.getSupportAgentById(agentId).orElse(null);
-        if (agent == null) {
-            return ResponseEntity.notFound().build();
-        }
+        SupportAgent agent = supportAgentService.getSupportAgentById(agentId)
+                .orElseThrow(() -> new NoSuchElementException("Support agent not found with id " + agentId));
         return ResponseEntity.ok(agent);
     }
 

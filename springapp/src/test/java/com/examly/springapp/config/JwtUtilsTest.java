@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import com.examly.springapp.model.User;
+import com.examly.springapp.model.UserRole;
 
 class JwtUtilsTest {
 
@@ -18,7 +19,7 @@ class JwtUtilsTest {
         user.setEmail("alice@test.com");
         user.setPassword("encoded");
         user.setUsername("Alice");
-        user.setUserRole("Client");
+        user.setUserRole(UserRole.CLIENT);
         return new UserPrinciple(user);
     }
 

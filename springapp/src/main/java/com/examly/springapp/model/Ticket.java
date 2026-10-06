@@ -3,6 +3,7 @@ package com.examly.springapp.model;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,7 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @Entity
@@ -32,16 +33,16 @@ public class Ticket {
     @Column(nullable = false, length = 2000)
     private String description;
 
-    @NotBlank(message = "Priority is required")
-    @Pattern(regexp = "^(High|Medium|Low)$", message = "Priority must be High, Medium or Low")
+    // High, Medium or Low (stored as the label, see TicketPriority)
+    @NotNull(message = "Priority is required")
+    @Convert(converter = TicketPriority.DbConverter.class)
     @Column(nullable = false)
-    private String priority;
+    private TicketPriority priority;
 
-    // Allowed values: Open, In Progress, Resolved, Closed. Every new ticket starts as Open.
-    @Pattern(regexp = "^(Open|In Progress|Resolved|Closed)$",
-            message = "Status must be Open, In Progress, Resolved or Closed")
+    // Open, In Progress, Resolved or Closed. Every new ticket starts as Open.
+    @Convert(converter = TicketStatus.DbConverter.class)
     @Column(nullable = false)
-    private String status = "Open";
+    private TicketStatus status = TicketStatus.OPEN;
 
     @Column(nullable = false)
     private LocalDate createdDate;
@@ -96,19 +97,19 @@ public class Ticket {
         this.description = description;
     }
 
-    public String getPriority() {
+    public TicketPriority getPriority() {
         return priority;
     }
 
-    public void setPriority(String priority) {
+    public void setPriority(TicketPriority priority) {
         this.priority = priority;
     }
 
-    public String getStatus() {
+    public TicketStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TicketStatus status) {
         this.status = status;
     }
 

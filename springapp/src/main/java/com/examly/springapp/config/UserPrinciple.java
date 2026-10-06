@@ -9,6 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import com.examly.springapp.model.User;
+import com.examly.springapp.model.UserRole;
 
 // The logged-in user as Spring Security sees it.
 // The email is used as the "username" for login, and the role "Manager"/"Client"
@@ -19,7 +20,7 @@ public class UserPrinciple implements UserDetails {
     private String email;
     private String password;
     private String username;
-    private String userRole;
+    private UserRole userRole;
     private List<GrantedAuthority> authorities;
 
     public UserPrinciple(User user) {
@@ -29,7 +30,7 @@ public class UserPrinciple implements UserDetails {
         this.username = user.getUsername();
         this.userRole = user.getUserRole();
         this.authorities = new ArrayList<>();
-        this.authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getUserRole().toUpperCase()));
+        this.authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getUserRole().getLabel().toUpperCase()));
     }
 
     public Long getUserId() {
@@ -45,16 +46,17 @@ public class UserPrinciple implements UserDetails {
         return username;
     }
 
+    // "Manager" or "Client" - the value sent in LoginDTO and in the JWT, as before
     public String getUserRole() {
-        return userRole;
+        return userRole.getLabel();
     }
 
     public boolean isManager() {
-        return "Manager".equals(userRole);
+        return userRole == UserRole.MANAGER;
     }
 
     public boolean isClient() {
-        return "Client".equals(userRole);
+        return userRole == UserRole.CLIENT;
     }
 
     @Override

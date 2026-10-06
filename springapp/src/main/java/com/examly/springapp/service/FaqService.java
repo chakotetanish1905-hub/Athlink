@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -211,11 +212,11 @@ public class FaqService {
         }
 
         for (Faq faq : seedFaqs) {
-            FaqEntity entity = faqRepository.findById(faq.getId()).orElse(null);
-            boolean isNew = entity == null;
-            if (isNew) {
-                entity = new FaqEntity(faq.getId(), faq.getCategory(), faq.getQuestion(), faq.getAnswer());
-            }
+            // Absent is a normal case here: it means the FAQ still has to be seeded
+            Optional<FaqEntity> existing = faqRepository.findById(faq.getId());
+            boolean isNew = existing.isEmpty();
+            FaqEntity entity = existing.orElseGet(
+                    () -> new FaqEntity(faq.getId(), faq.getCategory(), faq.getQuestion(), faq.getAnswer()));
 
             boolean needsEmbedding = geminiService.isEnabled() && entity.getEmbedding() == null;
             if (needsEmbedding) {

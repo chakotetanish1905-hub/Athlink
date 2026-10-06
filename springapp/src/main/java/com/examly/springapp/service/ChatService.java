@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.examly.springapp.model.ChatMessage;
@@ -24,6 +26,8 @@ import com.examly.springapp.repository.ChatMessageRepository;
 //     -> saved in ConversationMemory and in the chat_messages table
 @Service
 public class ChatService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChatService.class);
 
     public static final String NO_MATCH_REPLY = "I couldn't find that in the SupportSphere FAQs. "
             + "I can help with tickets, support agents, feedback and account questions - "
@@ -88,6 +92,10 @@ public class ChatService {
         conversationMemory.addTurn(sessionId, resolvedQuestion, reply);
         Long matchedFaqId = match.isMatched() ? match.getFaq().getId() : null;
         chatMessageRepository.save(new ChatMessage(sessionId, message, reply, matchedFaqId, round(match.getScore())));
+
+        // The question itself is not logged: it is user-written text and may contain personal data
+        LOGGER.debug("Chat answered: sessionId={} matched={} faqId={} source={} score={}", sessionId,
+                match.isMatched(), matchedFaqId, match.isSemantic() ? "semantic" : "lexical", round(match.getScore()));
 
         ChatResponse response = new ChatResponse();
         response.setReply(reply);

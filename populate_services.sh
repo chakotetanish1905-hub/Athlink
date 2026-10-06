@@ -11,6 +11,10 @@
 #
 #  Folders are created only if they don't exist (mkdir -p); existing files are overwritten.
 #  The old service implementations that used to sit directly in service/ are removed, because
+#
+#  NOTE: these services use the enums in model/ (TicketStatus, TicketPriority, AgentStatus, UserRole)
+#  and the existsBy... repository methods from the backend refactor, so the rest of the backend
+#  must be on the same version for them to compile.
 #  they now live in service/impl and two classes with the same name would not compile.
 # =====================================================================================
 set -e
@@ -44,6 +48,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.examly.springapp.model.ChatMessage;
@@ -62,6 +68,8 @@ import com.examly.springapp.repository.ChatMessageRepository;
 //     -> saved in ConversationMemory and in the chat_messages table
 @Service
 public class ChatService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChatService.class);
 
     public static final String NO_MATCH_REPLY = "I couldn't find that in the SupportSphere FAQs. "
             + "I can help with tickets, support agents, feedback and account questions - "
@@ -126,6 +134,10 @@ public class ChatService {
         conversationMemory.addTurn(sessionId, resolvedQuestion, reply);
         Long matchedFaqId = match.isMatched() ? match.getFaq().getId() : null;
         chatMessageRepository.save(new ChatMessage(sessionId, message, reply, matchedFaqId, round(match.getScore())));
+
+        // The question itself is not logged: it is user-written text and may contain personal data
+        LOGGER.debug("Chat answered: sessionId={} matched={} faqId={} source={} score={}", sessionId,
+                match.isMatched(), matchedFaqId, match.isSemantic() ? "semantic" : "lexical", round(match.getScore()));
 
         ChatResponse response = new ChatResponse();
         response.setReply(reply);
@@ -290,6 +302,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -496,11 +509,11 @@ public class FaqService {
         }
 
         for (Faq faq : seedFaqs) {
-            FaqEntity entity = faqRepository.findById(faq.getId()).orElse(null);
-            boolean isNew = entity == null;
-            if (isNew) {
-                entity = new FaqEntity(faq.getId(), faq.getCategory(), faq.getQuestion(), faq.getAnswer());
-            }
+            // Absent is a normal case here: it means the FAQ still has to be seeded
+            Optional<FaqEntity> existing = faqRepository.findById(faq.getId());
+            boolean isNew = existing.isEmpty();
+            FaqEntity entity = existing.orElseGet(
+                    () -> new FaqEntity(faq.getId(), faq.getCategory(), faq.getQuestion(), faq.getAnswer()));
 
             boolean needsEmbedding = geminiService.isEnabled() && entity.getEmbedding() == null;
             if (needsEmbedding) {
@@ -712,6 +725,9 @@ public interface TicketService {
 
     List<Ticket> getTicketsByAgentId(Long agentId);
 
+    // Only the given client's tickets that were handled by the agent ("Tickets Worked")
+    List<Ticket> getTicketsByAgentIdForUser(Long agentId, Long userId);
+
     List<Ticket> getTicketsByUserId(Long userId);
 }
 SUPPORTSPHERE_EOF
@@ -743,8 +759,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.examly.springapp.model.Feedback;
 import com.examly.springapp.model.Ticket;
@@ -757,6 +776,8 @@ import com.examly.springapp.service.FeedbackService;
 @Service
 public class FeedbackServiceImpl implements FeedbackService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(FeedbackServiceImpl.class);
+
     private final FeedbackRepo feedbackRepo;
     private final TicketRepo ticketRepo;
     private final UserRepo userRepo;
@@ -768,30 +789,27 @@ public class FeedbackServiceImpl implements FeedbackService {
     }
 
     @Override
+    @Transactional
     public Feedback createFeedback(Feedback feedback) {
         if (feedback.getTicket() == null || feedback.getTicket().getTicketId() == null) {
             throw new IllegalArgumentException("Please select the ticket you are reviewing");
         }
 
-        Ticket ticket = ticketRepo.findById(feedback.getTicket().getTicketId()).orElse(null);
-        if (ticket == null) {
-            throw new NoSuchElementException("Ticket not found");
-        }
-        User user = userRepo.findById(feedback.getUser().getUserId()).orElse(null);
-        if (user == null) {
-            throw new NoSuchElementException("User not found");
-        }
+        Ticket ticket = ticketRepo.findById(feedback.getTicket().getTicketId())
+                .orElseThrow(() -> new NoSuchElementException("Ticket not found"));
+        User user = userRepo.findById(feedback.getUser().getUserId())
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
 
         // A client can only review their own ticket
         if (!ticket.getUser().getUserId().equals(user.getUserId())) {
             throw new AccessDeniedException("You can only give feedback on your own tickets");
         }
         // Feedback is allowed only after the ticket is Resolved or Closed
-        if (!"Resolved".equals(ticket.getStatus()) && !"Closed".equals(ticket.getStatus())) {
+        if (!ticket.getStatus().isResolvedOrClosed()) {
             throw new IllegalArgumentException("Feedback can be given only for a Resolved or Closed ticket");
         }
         // One feedback per ticket
-        if (!feedbackRepo.findByTicketTicketId(ticket.getTicketId()).isEmpty()) {
+        if (feedbackRepo.existsByTicketTicketId(ticket.getTicketId())) {
             throw new IllegalStateException("You have already given feedback for this ticket");
         }
 
@@ -800,31 +818,36 @@ public class FeedbackServiceImpl implements FeedbackService {
         feedback.setTicket(ticket);
         feedback.setSupportAgent(ticket.getSupportAgent());
         feedback.setDate(LocalDate.now());
-        return feedbackRepo.save(feedback);
+        Feedback saved = feedbackRepo.save(feedback);
+        LOGGER.info("Feedback created: feedbackId={} ticketId={} userId={} rating={}",
+                saved.getFeedbackId(), ticket.getTicketId(), user.getUserId(), saved.getRating());
+        return saved;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Feedback getFeedbackById(Long feedbackId) {
-        Feedback feedback = feedbackRepo.findById(feedbackId).orElse(null);
-        if (feedback == null) {
-            throw new NoSuchElementException("Feedback not found with id " + feedbackId);
-        }
-        return feedback;
+        return feedbackRepo.findById(feedbackId)
+                .orElseThrow(() -> new NoSuchElementException("Feedback not found with id " + feedbackId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Feedback> getAllFeedbacks() {
         return feedbackRepo.findAll();
     }
 
     @Override
+    @Transactional
     public Feedback deleteFeedback(Long feedbackId) {
         Feedback feedback = getFeedbackById(feedbackId);
         feedbackRepo.delete(feedback);
+        LOGGER.info("Feedback deleted: feedbackId={}", feedbackId);
         return feedback;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Feedback> getFeedbacksByUserId(Long userId) {
         if (!userRepo.existsById(userId)) {
             throw new NoSuchElementException("User not found with id " + userId);
@@ -843,10 +866,14 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.examly.springapp.exceptions.AgentDeletionException;
 import com.examly.springapp.exceptions.DuplicateAgentException;
+import com.examly.springapp.model.AgentStatus;
 import com.examly.springapp.model.SupportAgent;
 import com.examly.springapp.repository.FeedbackRepo;
 import com.examly.springapp.repository.SupportAgentRepo;
@@ -855,6 +882,8 @@ import com.examly.springapp.service.SupportAgentService;
 
 @Service
 public class SupportAgentServiceImpl implements SupportAgentService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SupportAgentServiceImpl.class);
 
     private final SupportAgentRepo supportAgentRepo;
     private final TicketRepo ticketRepo;
@@ -868,43 +897,48 @@ public class SupportAgentServiceImpl implements SupportAgentService {
     }
 
     @Override
+    @Transactional
     public SupportAgent addSupportAgent(SupportAgent supportAgent) {
         String email = supportAgent.getEmail().trim().toLowerCase();
 
         // Two agents cannot share the same email
-        if (supportAgentRepo.findByEmail(email) != null) {
+        if (supportAgentRepo.existsByEmail(email)) {
             throw new DuplicateAgentException("A support agent with this email already exists");
         }
 
         supportAgent.setAgentId(null);
         supportAgent.setEmail(email);
         supportAgent.setAddedDate(LocalDate.now());
-        return supportAgentRepo.save(supportAgent);
+        SupportAgent saved = supportAgentRepo.save(supportAgent);
+        LOGGER.info("Support agent added: agentId={} expertise={} status={}",
+                saved.getAgentId(), saved.getExpertise(), saved.getStatus().getLabel());
+        return saved;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<SupportAgent> getSupportAgentById(Long agentId) {
         return supportAgentRepo.findById(agentId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<SupportAgent> getAllSupportAgents() {
         return supportAgentRepo.findAll();
     }
 
     @Override
+    @Transactional
     public SupportAgent updateSupportAgent(Long agentId, SupportAgent supportAgent) {
-        SupportAgent existing = supportAgentRepo.findById(agentId).orElse(null);
-        if (existing == null) {
-            throw new NoSuchElementException("Support agent not found with id " + agentId);
-        }
+        SupportAgent existing = supportAgentRepo.findById(agentId)
+                .orElseThrow(() -> new NoSuchElementException("Support agent not found with id " + agentId));
 
         String email = supportAgent.getEmail().trim().toLowerCase();
-        SupportAgent sameEmail = supportAgentRepo.findByEmail(email);
-        if (sameEmail != null && !sameEmail.getAgentId().equals(agentId)) {
+        if (supportAgentRepo.existsByEmailAndAgentIdNot(email, agentId)) {
             throw new DuplicateAgentException("A support agent with this email already exists");
         }
 
+        AgentStatus oldStatus = existing.getStatus();
         existing.setName(supportAgent.getName());
         existing.setEmail(email);
         existing.setPhone(supportAgent.getPhone());
@@ -915,24 +949,29 @@ public class SupportAgentServiceImpl implements SupportAgentService {
         existing.setShiftTiming(supportAgent.getShiftTiming());
         existing.setRemarks(supportAgent.getRemarks());
         // addedDate never changes after the agent is created
-        return supportAgentRepo.save(existing);
+        SupportAgent saved = supportAgentRepo.save(existing);
+        LOGGER.info("Support agent updated: agentId={}", agentId);
+        if (oldStatus != saved.getStatus()) {
+            LOGGER.info("Support agent availability changed: agentId={} {} -> {}",
+                    agentId, oldStatus.getLabel(), saved.getStatus().getLabel());
+        }
+        return saved;
     }
 
     @Override
+    @Transactional
     public SupportAgent deleteSupportAgent(Long agentId) {
-        SupportAgent agent = supportAgentRepo.findById(agentId).orElse(null);
-        if (agent == null) {
-            throw new NoSuchElementException("Support agent not found with id " + agentId);
-        }
+        SupportAgent agent = supportAgentRepo.findById(agentId)
+                .orElseThrow(() -> new NoSuchElementException("Support agent not found with id " + agentId));
 
         // An agent that worked on tickets (or received feedback) is kept for the ticket history
-        if (!ticketRepo.findBySupportAgentAgentId(agentId).isEmpty()
-                || !feedbackRepo.findBySupportAgentAgentId(agentId).isEmpty()) {
+        if (ticketRepo.existsBySupportAgentAgentId(agentId) || feedbackRepo.existsBySupportAgentAgentId(agentId)) {
             throw new AgentDeletionException(
                     "This agent is assigned to tickets and cannot be deleted. Mark the agent Unavailable instead.");
         }
 
         supportAgentRepo.delete(agent);
+        LOGGER.info("Support agent deleted: agentId={}", agentId);
         return agent;
     }
 }
@@ -947,12 +986,17 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.examly.springapp.exceptions.DuplicateTicketException;
 import com.examly.springapp.exceptions.TicketDeletionException;
+import com.examly.springapp.model.AgentStatus;
 import com.examly.springapp.model.SupportAgent;
 import com.examly.springapp.model.Ticket;
+import com.examly.springapp.model.TicketStatus;
 import com.examly.springapp.model.User;
 import com.examly.springapp.repository.FeedbackRepo;
 import com.examly.springapp.repository.SupportAgentRepo;
@@ -962,6 +1006,8 @@ import com.examly.springapp.service.TicketService;
 
 @Service
 public class TicketServiceImpl implements TicketService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TicketServiceImpl.class);
 
     private final TicketRepo ticketRepo;
     private final UserRepo userRepo;
@@ -977,14 +1023,14 @@ public class TicketServiceImpl implements TicketService {
     }
 
     @Override
+    @Transactional
     public Ticket addTicket(Ticket ticket) {
-        User user = userRepo.findById(ticket.getUser().getUserId()).orElse(null);
-        if (user == null) {
-            throw new NoSuchElementException("User not found");
-        }
+        Long userId = ticket.getUser().getUserId();
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
 
         String title = ticket.getTitle().trim();
-        if (titleAlreadyUsed(user.getUserId(), title, null)) {
+        if (ticketRepo.existsByUserUserIdAndTitleIgnoreCase(userId, title)) {
             throw new DuplicateTicketException("A ticket with this title already exists");
         }
 
@@ -992,50 +1038,57 @@ public class TicketServiceImpl implements TicketService {
         ticket.setTicketId(null);
         ticket.setTitle(title);
         ticket.setUser(user);
-        ticket.setStatus("Open");
+        ticket.setStatus(TicketStatus.OPEN);
         ticket.setCreatedDate(LocalDate.now());
         ticket.setResolutionDate(null);
         ticket.setResolutionSummary(null);
         ticket.setSatisfied(null);
         ticket.setSupportAgent(null);
-        return ticketRepo.save(ticket);
+
+        Ticket saved = ticketRepo.save(ticket);
+        LOGGER.info("Ticket created: ticketId={} userId={} priority={} category={}",
+                saved.getTicketId(), userId, saved.getPriority().getLabel(), saved.getIssueCategory());
+        return saved;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Ticket> getTicketById(Long ticketId) {
         return ticketRepo.findById(ticketId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Ticket> getAllTickets() {
         return ticketRepo.findAll();
     }
 
     @Override
+    @Transactional
     public Ticket updateTicket(Long ticketId, Ticket ticket) {
-        Ticket existing = ticketRepo.findById(ticketId).orElse(null);
-        if (existing == null) {
-            throw new NoSuchElementException("Ticket not found with id " + ticketId);
-        }
+        Ticket existing = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NoSuchElementException("Ticket not found with id " + ticketId));
 
         // 1. Ticket details can only change while the ticket is Open and no agent is assigned
         boolean detailsChanged = !existing.getTitle().equals(ticket.getTitle().trim())
                 || !existing.getDescription().equals(ticket.getDescription())
-                || !existing.getPriority().equals(ticket.getPriority())
+                || existing.getPriority() != ticket.getPriority()
                 || !existing.getIssueCategory().equals(ticket.getIssueCategory());
         if (detailsChanged) {
-            if (!"Open".equals(existing.getStatus()) || existing.getSupportAgent() != null) {
+            if (existing.getStatus() != TicketStatus.OPEN || existing.getSupportAgent() != null) {
                 throw new IllegalArgumentException(
                         "A ticket can only be edited while it is Open and no agent is assigned");
             }
             String title = ticket.getTitle().trim();
-            if (titleAlreadyUsed(existing.getUser().getUserId(), title, ticketId)) {
+            if (ticketRepo.existsByUserUserIdAndTitleIgnoreCaseAndTicketIdNot(
+                    existing.getUser().getUserId(), title, ticketId)) {
                 throw new DuplicateTicketException("A ticket with this title already exists");
             }
             existing.setTitle(title);
             existing.setDescription(ticket.getDescription());
             existing.setPriority(ticket.getPriority());
             existing.setIssueCategory(ticket.getIssueCategory());
+            LOGGER.info("Ticket details updated: ticketId={}", ticketId);
         }
 
         // 2. Assign a support agent (only an Available agent can be assigned)
@@ -1043,14 +1096,13 @@ public class TicketServiceImpl implements TicketService {
             Long newAgentId = ticket.getSupportAgent().getAgentId();
             SupportAgent currentAgent = existing.getSupportAgent();
             if (currentAgent == null || !currentAgent.getAgentId().equals(newAgentId)) {
-                SupportAgent agent = supportAgentRepo.findById(newAgentId).orElse(null);
-                if (agent == null) {
-                    throw new NoSuchElementException("Support agent not found with id " + newAgentId);
-                }
-                if (!"Available".equals(agent.getStatus())) {
+                SupportAgent agent = supportAgentRepo.findById(newAgentId)
+                        .orElseThrow(() -> new NoSuchElementException("Support agent not found with id " + newAgentId));
+                if (agent.getStatus() != AgentStatus.AVAILABLE) {
                     throw new IllegalArgumentException("This support agent is currently unavailable");
                 }
                 existing.setSupportAgent(agent);
+                LOGGER.info("Agent assigned: ticketId={} agentId={}", ticketId, newAgentId);
             }
         }
 
@@ -1063,39 +1115,53 @@ public class TicketServiceImpl implements TicketService {
         }
 
         // 4. Status change
-        String newStatus = ticket.getStatus();
-        if (newStatus != null && !newStatus.equals(existing.getStatus())) {
-            changeStatus(existing, newStatus);
+        TicketStatus newStatus = ticket.getStatus();
+        if (newStatus != null && newStatus != existing.getStatus()) {
+            TicketStatus oldStatus = existing.getStatus();
+            validateStatusTransition(existing, newStatus);
+            if (newStatus == TicketStatus.RESOLVED) {
+                existing.setResolutionDate(LocalDate.now());
+            }
+            existing.setStatus(newStatus);
+            LOGGER.info("Ticket status changed: ticketId={} {} -> {}", ticketId, oldStatus.getLabel(), newStatus.getLabel());
         }
 
         return ticketRepo.save(existing);
     }
 
     @Override
+    @Transactional
     public Ticket deleteTicket(Long ticketId) {
-        Ticket ticket = ticketRepo.findById(ticketId).orElse(null);
-        if (ticket == null) {
-            throw new NoSuchElementException("Ticket not found with id " + ticketId);
-        }
-        if (!"Open".equals(ticket.getStatus()) || ticket.getSupportAgent() != null) {
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new NoSuchElementException("Ticket not found with id " + ticketId));
+
+        if (ticket.getStatus() != TicketStatus.OPEN || ticket.getSupportAgent() != null) {
             throw new TicketDeletionException("Only an Open ticket without an assigned agent can be deleted");
         }
-        if (!feedbackRepo.findByTicketTicketId(ticketId).isEmpty()) {
+        if (feedbackRepo.existsByTicketTicketId(ticketId)) {
             throw new TicketDeletionException("This ticket has feedback and cannot be deleted");
         }
         ticketRepo.delete(ticket);
+        LOGGER.info("Ticket deleted: ticketId={}", ticketId);
         return ticket;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Ticket> getTicketsByAgentId(Long agentId) {
-        if (!supportAgentRepo.existsById(agentId)) {
-            throw new NoSuchElementException("Support agent not found with id " + agentId);
-        }
+        checkAgentExists(agentId);
         return ticketRepo.findBySupportAgentAgentId(agentId);
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<Ticket> getTicketsByAgentIdForUser(Long agentId, Long userId) {
+        checkAgentExists(agentId);
+        return ticketRepo.findBySupportAgentAgentIdAndUserUserId(agentId, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Ticket> getTicketsByUserId(Long userId) {
         if (!userRepo.existsById(userId)) {
             throw new NoSuchElementException("User not found with id " + userId);
@@ -1103,43 +1169,35 @@ public class TicketServiceImpl implements TicketService {
         return ticketRepo.findByUserUserId(userId);
     }
 
-    // Ticket lifecycle: Open -> (agent assigned) -> Resolved (by client, needs summary) -> Closed (by manager)
-    private void changeStatus(Ticket ticket, String newStatus) {
-        String currentStatus = ticket.getStatus();
+    // All status rules in one place. Ticket lifecycle:
+    //   Open <-> In Progress  ->  Resolved (by the client, needs a summary and an agent)  ->  Closed (only from Resolved)
+    // A Resolved or Closed ticket can never go back to Open or In Progress.
+    private void validateStatusTransition(Ticket ticket, TicketStatus newStatus) {
+        TicketStatus currentStatus = ticket.getStatus();
 
-        if ("Resolved".equals(currentStatus) || "Closed".equals(currentStatus)) {
-            if (!("Resolved".equals(currentStatus) && "Closed".equals(newStatus))) {
-                throw new IllegalArgumentException("A resolved or closed ticket cannot be reopened");
-            }
+        if (currentStatus.isResolvedOrClosed()
+                && !(currentStatus == TicketStatus.RESOLVED && newStatus == TicketStatus.CLOSED)) {
+            throw new IllegalArgumentException("A resolved or closed ticket cannot be reopened");
         }
 
-        if ("Resolved".equals(newStatus)) {
+        if (newStatus == TicketStatus.RESOLVED) {
             if (ticket.getResolutionSummary() == null || ticket.getResolutionSummary().isBlank()) {
                 throw new IllegalArgumentException("Please provide resolution details before marking resolve.");
             }
             if (ticket.getSupportAgent() == null) {
                 throw new IllegalArgumentException("A support agent must be assigned before resolving the ticket");
             }
-            ticket.setResolutionDate(LocalDate.now());
         }
 
-        if ("Closed".equals(newStatus) && !"Resolved".equals(currentStatus)) {
+        if (newStatus == TicketStatus.CLOSED && currentStatus != TicketStatus.RESOLVED) {
             throw new IllegalArgumentException("Only a resolved ticket can be closed");
         }
-
-        ticket.setStatus(newStatus);
     }
 
-    // True when the same client already has another ticket with this title.
-    private boolean titleAlreadyUsed(Long userId, String title, Long ignoreTicketId) {
-        List<Ticket> tickets = ticketRepo.findByUserUserId(userId);
-        for (Ticket t : tickets) {
-            boolean sameTicket = ignoreTicketId != null && ignoreTicketId.equals(t.getTicketId());
-            if (!sameTicket && t.getTitle().equalsIgnoreCase(title)) {
-                return true;
-            }
+    private void checkAgentExists(Long agentId) {
+        if (!supportAgentRepo.existsById(agentId)) {
+            throw new NoSuchElementException("Support agent not found with id " + agentId);
         }
-        return false;
     }
 }
 SUPPORTSPHERE_EOF
@@ -1148,11 +1206,14 @@ echo "  wrote service/impl/TicketServiceImpl.java"
 cat > "$SERVICE/impl/UserServiceImpl.java" <<'SUPPORTSPHERE_EOF'
 package com.examly.springapp.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.examly.springapp.config.JwtUtils;
 import com.examly.springapp.config.UserPrinciple;
@@ -1163,6 +1224,8 @@ import com.examly.springapp.service.UserService;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserRepo userRepo;
     private final PasswordEncoder passwordEncoder;
@@ -1178,11 +1241,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public User createUser(User user) {
         String email = user.getEmail().trim().toLowerCase();
 
         // Check whether the email already exists (answered with 409 by GlobalExceptionHandler)
-        if (userRepo.findByEmail(email) != null) {
+        if (userRepo.existsByEmail(email)) {
             throw new IllegalStateException("A user with this email already exists");
         }
 
@@ -1191,7 +1255,9 @@ public class UserServiceImpl implements UserService {
         user.setUsername(user.getUsername().trim());
         // Never store the plain password: save the BCrypt hash instead
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepo.save(user);
+        User saved = userRepo.save(user);
+        LOGGER.info("User registered: userId={} role={}", saved.getUserId(), saved.getUserRole().getLabel());
+        return saved;
     }
 
     @Override
@@ -1205,6 +1271,7 @@ public class UserServiceImpl implements UserService {
 
         UserPrinciple principle = (UserPrinciple) authentication.getPrincipal();
         String token = jwtUtils.generateToken(principle);
+        LOGGER.info("Login successful: userId={} role={}", principle.getUserId(), principle.getUserRole());
 
         return new LoginDTO(token, principle.getDisplayName(), principle.getUserRole(), principle.getUserId());
     }
@@ -1212,5 +1279,4 @@ public class UserServiceImpl implements UserService {
 SUPPORTSPHERE_EOF
 echo "  wrote service/impl/UserServiceImpl.java"
 
-echo ""
 echo "Done: 12 service files written."

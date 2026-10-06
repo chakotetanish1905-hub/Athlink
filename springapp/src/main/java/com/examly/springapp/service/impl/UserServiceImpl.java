@@ -1,10 +1,13 @@
 package com.examly.springapp.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.examly.springapp.config.JwtUtils;
 import com.examly.springapp.config.UserPrinciple;
@@ -15,6 +18,8 @@ import com.examly.springapp.service.UserService;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserRepo userRepo;
     private final PasswordEncoder passwordEncoder;
@@ -30,11 +35,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public User createUser(User user) {
         String email = user.getEmail().trim().toLowerCase();
 
         // Check whether the email already exists (answered with 409 by GlobalExceptionHandler)
-        if (userRepo.findByEmail(email) != null) {
+        if (userRepo.existsByEmail(email)) {
             throw new IllegalStateException("A user with this email already exists");
         }
 
@@ -43,7 +49,9 @@ public class UserServiceImpl implements UserService {
         user.setUsername(user.getUsername().trim());
         // Never store the plain password: save the BCrypt hash instead
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepo.save(user);
+        User saved = userRepo.save(user);
+        LOGGER.info("User registered: userId={} role={}", saved.getUserId(), saved.getUserRole().getLabel());
+        return saved;
     }
 
     @Override
@@ -57,6 +65,7 @@ public class UserServiceImpl implements UserService {
 
         UserPrinciple principle = (UserPrinciple) authentication.getPrincipal();
         String token = jwtUtils.generateToken(principle);
+        LOGGER.info("Login successful: userId={} role={}", principle.getUserId(), principle.getUserRole());
 
         return new LoginDTO(token, principle.getDisplayName(), principle.getUserRole(), principle.getUserId());
     }

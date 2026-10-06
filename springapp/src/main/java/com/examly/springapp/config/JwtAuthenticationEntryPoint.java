@@ -2,6 +2,8 @@ package com.examly.springapp.config;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtAuthenticationEntryPoint.class);
+
     private final ErrorLogRepo errorLogRepo;
 
     public JwtAuthenticationEntryPoint(ErrorLogRepo errorLogRepo) {
@@ -26,6 +30,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException authException) throws IOException {
         String message = "Please login to access this resource";
+        LOGGER.warn("401 Unauthorized: {} {}", request.getMethod(), request.getRequestURI());
         errorLogRepo.save(new ErrorLog(401, message, request.getRequestURI(), "Unauthorized"));
 
         response.setStatus(401);

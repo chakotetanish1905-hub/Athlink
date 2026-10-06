@@ -19,5 +19,8 @@ public interface TicketService {
 
     List<Ticket> getTicketsByAgentId(Long agentId);
 
+    // Only the given client's tickets that were handled by the agent ("Tickets Worked")
+    List<Ticket> getTicketsByAgentIdForUser(Long agentId, Long userId);
+
     List<Ticket> getTicketsByUserId(Long userId);
 }

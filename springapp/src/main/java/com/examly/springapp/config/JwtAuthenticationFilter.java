@@ -2,9 +2,12 @@ package com.examly.springapp.config;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -16,6 +19,8 @@ import jakarta.servlet.http.HttpServletResponse;
 // If the request has "Authorization: Bearer <token>" and the token is valid,
 // the user is loaded and stored in the SecurityContext for this request only.
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtUtils jwtUtils;
     private final MyUserDetailsService userDetailsService;
@@ -43,8 +48,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                } catch (Exception e) {
-                    // The user in the token no longer exists: continue without authentication
+                } catch (UsernameNotFoundException e) {
+                    // The token is valid but its user was deleted: continue without authentication (401)
+                    LOGGER.warn("Valid JWT for a user that no longer exists on {} {}",
+                            request.getMethod(), request.getRequestURI());
                     SecurityContextHolder.clearContext();
                 }
             }

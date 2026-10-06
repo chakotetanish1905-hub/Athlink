@@ -66,9 +66,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleBadRequest(Exception ex, HttpServletRequest request) {
         String message = ex.getMessage();
         if (ex instanceof HttpMessageNotReadableException) {
-            message = "The request body is not valid";
+            message = unreadableBodyMessage(ex);
         }
         return buildResponse(HttpStatus.BAD_REQUEST, message, request, ex);
+    }
+
+    // An unknown enum value in the JSON (for example "status": "Pending") is reported with the enum's own
+    // message, e.g. "Status must be Open, In Progress, Resolved or Closed". Anything else is a generic message.
+    private String unreadableBodyMessage(Exception ex) {
+        Throwable cause = ex.getCause();
+        while (cause != null) {
+            if (cause instanceof IllegalArgumentException && cause.getMessage() != null) {
+                return cause.getMessage();
+            }
+            cause = cause.getCause();
+        }
+        return "The request body is not valid";
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -103,16 +116,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOtherErrors(Exception ex, HttpServletRequest request) {
-        LOGGER.error("Unexpected error on {}", request.getRequestURI(), ex);
+        LOGGER.error("Unexpected error on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong. Please try again later.",
                 request, ex);
     }
 
     // Saves the error in the ErrorLogs table and builds the JSON body sent to Angular.
+    // Expected client errors (4xx) are logged once here at WARN, without a stack trace.
+    // Unexpected errors (500) are logged at ERROR with the stack trace in handleOtherErrors.
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message,
             HttpServletRequest request, Exception ex) {
-        errorLogRepo.save(new ErrorLog(status.value(), message, request.getRequestURI(),
-                ex.getClass().getSimpleName()));
+        if (status.is4xxClientError()) {
+            LOGGER.warn("{} {} on {} {}: {}", status.value(), ex.getClass().getSimpleName(),
+                    request.getMethod(), request.getRequestURI(), message);
+        }
+
+        try {
+            errorLogRepo.save(new ErrorLog(status.value(), message, request.getRequestURI(),
+                    ex.getClass().getSimpleName()));
+        } catch (RuntimeException saveError) {
+            // Still answer the client even if the ErrorLogs table cannot be written (for example, database down)
+            LOGGER.error("Could not save the error in ErrorLogs", saveError);
+        }
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now().toString());

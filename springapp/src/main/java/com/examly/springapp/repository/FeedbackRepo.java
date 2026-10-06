@@ -11,8 +11,9 @@ public interface FeedbackRepo extends JpaRepository<Feedback, Long> {
     // GET /api/feedback/user/{userId}
     List<Feedback> findByUserUserId(Long userId);
 
-    // Used before deleting a ticket or an agent that still has feedback.
-    List<Feedback> findByTicketTicketId(Long ticketId);
+    // One feedback per ticket, and a ticket with feedback cannot be deleted
+    boolean existsByTicketTicketId(Long ticketId);
 
-    List<Feedback> findBySupportAgentAgentId(Long agentId);
+    // An agent with feedback cannot be deleted
+    boolean existsBySupportAgentAgentId(Long agentId);
 }

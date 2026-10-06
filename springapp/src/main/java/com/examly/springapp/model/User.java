@@ -3,6 +3,7 @@ package com.examly.springapp.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -43,10 +45,11 @@ public class User {
     @Column(nullable = false)
     private String mobileNumber;
 
-    @NotBlank(message = "User role is required")
-    @Pattern(regexp = "^(Manager|Client)$", message = "User role must be Manager or Client")
+    // Manager or Client (stored as the label, see UserRole)
+    @NotNull(message = "User role is required")
+    @Convert(converter = UserRole.DbConverter.class)
     @Column(nullable = false)
-    private String userRole;
+    private UserRole userRole;
 
     public User() {
     }
@@ -91,11 +94,11 @@ public class User {
         this.mobileNumber = mobileNumber;
     }
 
-    public String getUserRole() {
+    public UserRole getUserRole() {
         return userRole;
     }
 
-    public void setUserRole(String userRole) {
+    public void setUserRole(UserRole userRole) {
         this.userRole = userRole;
     }
 }

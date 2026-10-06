@@ -6,6 +6,9 @@ import com.examly.springapp.model.SupportAgent;
 
 public interface SupportAgentRepo extends JpaRepository<SupportAgent, Long> {
 
-    // Used to throw DuplicateAgentException when the email is already taken.
-    SupportAgent findByEmail(String email);
+    // Add agent: is the email already used? (DuplicateAgentException)
+    boolean existsByEmail(String email);
+
+    // Update agent: is the email used by ANOTHER agent?
+    boolean existsByEmailAndAgentIdNot(String email, Long agentId);
 }

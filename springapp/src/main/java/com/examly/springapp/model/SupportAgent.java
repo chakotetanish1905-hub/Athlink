@@ -3,6 +3,7 @@ package com.examly.springapp.model;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,6 +12,7 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 @Entity
@@ -41,10 +43,10 @@ public class SupportAgent {
     @NotBlank(message = "Experience is required")
     private String experience;
 
-    // Allowed values: Available, Unavailable.
-    @NotBlank(message = "Status is required")
-    @Pattern(regexp = "^(Available|Unavailable)$", message = "Status must be Available or Unavailable")
-    private String status;
+    // Available or Unavailable (stored as the label, see AgentStatus)
+    @NotNull(message = "Status is required")
+    @Convert(converter = AgentStatus.DbConverter.class)
+    private AgentStatus status;
 
     private LocalDate addedDate;
 
@@ -111,11 +113,11 @@ public class SupportAgent {
         this.experience = experience;
     }
 
-    public String getStatus() {
+    public AgentStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(AgentStatus status) {
         this.status = status;
     }
 

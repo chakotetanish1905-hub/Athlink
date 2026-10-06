@@ -22,10 +22,9 @@ public class MyUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepo.findByEmail(email);
-        if (user == null) {
-            throw new UsernameNotFoundException("Invalid email or password");
-        }
+        // DaoAuthenticationProvider turns UsernameNotFoundException into "bad credentials" (401)
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid email or password"));
         return new UserPrinciple(user);
     }
 }

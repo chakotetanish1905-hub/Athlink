@@ -3,10 +3,13 @@ package com.examly.springapp.config;
 import java.security.Key;
 import java.util.Date;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -16,6 +19,8 @@ import io.jsonwebtoken.security.Keys;
 // Creates and validates JSON Web Tokens.
 @Component
 public class JwtUtils {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtUtils.class);
 
     private final Key key;
     private final long expirationMs;
@@ -50,7 +55,12 @@ public class JwtUtils {
         try {
             getClaims(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            LOGGER.debug("JWT rejected: token has expired");
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
+            // Only the reason is logged - never the token itself
+            LOGGER.debug("JWT rejected: {}", e.getClass().getSimpleName());
             return false;
         }
     }

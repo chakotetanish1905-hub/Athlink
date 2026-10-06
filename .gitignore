@@ -10,3 +10,7 @@ angularapp/coverage/
 .vscode/
 *.iml
 .DS_Store
+
+# Application logs
+logs/
+springapp/logs/
